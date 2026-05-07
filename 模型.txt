@@ -1,0 +1,5 @@
+/model kimi-for-coding
+/model MiniMax-M2.7
+/model mimo-v2.5-pro
+/model
+claude
