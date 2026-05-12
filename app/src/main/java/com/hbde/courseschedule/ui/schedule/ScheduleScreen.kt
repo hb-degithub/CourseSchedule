@@ -1,6 +1,12 @@
 package com.hbde.courseschedule.ui.schedule
 
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -18,6 +24,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.Upload
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -50,7 +57,8 @@ import java.time.format.DateTimeFormatter
 @Composable
 fun ScheduleScreen(
     viewModel: ScheduleViewModel = hiltViewModel(),
-    onNavigateToEditor: (courseId: Int?, dayOfWeek: Int?, startNode: Int?) -> Unit = { _, _, _ -> }
+    onNavigateToEditor: (courseId: Int?, dayOfWeek: Int?, startNode: Int?) -> Unit = { _, _, _ -> },
+    onNavigateToImportMethod: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val today = LocalDate.now()
@@ -100,6 +108,9 @@ fun ScheduleScreen(
                     IconButton(onClick = { onNavigateToEditor(null, null, null) }) {
                         Icon(Icons.Filled.Add, contentDescription = "添加课程")
                     }
+                    IconButton(onClick = onNavigateToImportMethod) {
+                        Icon(Icons.Filled.Upload, contentDescription = "导入课表")
+                    }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.primary,
@@ -123,19 +134,34 @@ fun ScheduleScreen(
                     .padding(horizontal = 16.dp, vertical = 8.dp)
             )
 
-            // 课表网格
-            ScheduleGrid(
-                courses = uiState.courses,
-                currentDayOfWeek = currentDayOfWeek,
-                currentTime = currentTime,
-                timeSlots = uiState.timeSlots,
-                onEmptyCellClick = { dayOfWeek, startNode ->
-                    onNavigateToEditor(null, dayOfWeek, startNode)
+            // 课表网格（带周切换动画）
+            AnimatedContent(
+                targetState = uiState.currentWeek,
+                transitionSpec = {
+                    if (targetState > initialState) {
+                        slideInHorizontally { it } + fadeIn() togetherWith
+                            slideOutHorizontally { -it } + fadeOut()
+                    } else {
+                        slideInHorizontally { -it } + fadeIn() togetherWith
+                            slideOutHorizontally { it } + fadeOut()
+                    }
                 },
-                onCourseClick = { course ->
-                    onNavigateToEditor(course.id, null, null)
-                }
-            )
+                label = "weekSwitch",
+                modifier = Modifier.fillMaxWidth().weight(1f)
+            ) { week ->
+                ScheduleGrid(
+                    courses = uiState.courses,
+                    currentDayOfWeek = currentDayOfWeek,
+                    currentTime = currentTime,
+                    timeSlots = uiState.timeSlots,
+                    onEmptyCellClick = { dayOfWeek, startNode ->
+                        onNavigateToEditor(null, dayOfWeek, startNode)
+                    },
+                    onCourseClick = { course ->
+                        onNavigateToEditor(course.id, null, null)
+                    }
+                )
+            }
         }
     }
 }

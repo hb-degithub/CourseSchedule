@@ -96,6 +96,13 @@ class SettingsViewModel @Inject constructor(
             initialValue = 12
         )
 
+    val calendarSyncEnabled: StateFlow<Boolean> = settingsDataStore.calendarSyncEnabled
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = false
+        )
+
     val themeConfig = themeConfigRepository.getThemeConfig()
         .stateIn(
             scope = viewModelScope,
@@ -184,6 +191,12 @@ class SettingsViewModel @Inject constructor(
     fun onClassroomFontSizeChange(size: Int) {
         viewModelScope.launch {
             settingsDataStore.setClassroomFontSize(size)
+        }
+    }
+
+    fun onCalendarSyncEnabledChange(enabled: Boolean) {
+        viewModelScope.launch {
+            settingsDataStore.setCalendarSyncEnabled(enabled)
         }
     }
 

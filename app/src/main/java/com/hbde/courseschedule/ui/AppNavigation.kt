@@ -1,5 +1,9 @@
 package com.hbde.courseschedule.ui
 
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CalendarMonth
@@ -28,8 +32,10 @@ import com.hbde.courseschedule.ui.campus.CampusScreen
 import com.hbde.courseschedule.ui.campus.classroom.ClassroomScreen
 import com.hbde.courseschedule.ui.campus.grade.GradeScreen
 import com.hbde.courseschedule.ui.editor.CourseEditorScreen
+import com.hbde.courseschedule.ui.importer.ImportMethodScreen
 import com.hbde.courseschedule.ui.importer.ImportPreviewScreen
 import com.hbde.courseschedule.ui.event.EventEditorScreen
+import com.hbde.courseschedule.ui.onboarding.OnboardingScreen
 import com.hbde.courseschedule.ui.event.EventListScreen
 import com.hbde.courseschedule.ui.schedule.ScheduleScreen
 import com.hbde.courseschedule.ui.schedule.TwoDayScheduleScreen
@@ -55,6 +61,8 @@ object Routes {
     const val COURSE_EDITOR = "course_editor_screen"
     const val EVENT_EDITOR = "event_editor_screen"
     const val IMPORT_PREVIEW = "import_preview_screen"
+    const val IMPORT_METHOD = "import_method_screen"
+    const val ONBOARDING = "onboarding_screen"
 }
 
 @Composable
@@ -67,7 +75,11 @@ fun AppNavigation() {
         NavHost(
             navController = navController,
             startDestination = Routes.SCHEDULE,
-            modifier = Modifier.padding(innerPadding)
+            modifier = Modifier.padding(innerPadding),
+            enterTransition = { slideInHorizontally { it } + fadeIn() },
+            exitTransition = { slideOutHorizontally { -it } + fadeOut() },
+            popEnterTransition = { slideInHorizontally { -it } + fadeIn() },
+            popExitTransition = { slideOutHorizontally { it } + fadeOut() }
         ) {
             composable(Routes.SCHEDULE) {
                 ScheduleScreen(
@@ -84,7 +96,8 @@ fun AppNavigation() {
                             }
                         }
                         navController.navigate(route)
-                    }
+                    },
+                    onNavigateToImportMethod = { navController.navigate(Routes.IMPORT_METHOD) }
                 )
             }
             composable(Routes.TWO_DAY_SCHEDULE) {
@@ -166,6 +179,36 @@ fun AppNavigation() {
             ) {
                 ImportPreviewScreen(
                     onNavigateBack = { navController.popBackStack() }
+                )
+            }
+            composable(Routes.IMPORT_METHOD) {
+                ImportMethodScreen(
+                    onNavigateBack = { navController.popBackStack() },
+                    onNavigateToWebViewImporter = {
+                        // TODO: Navigate to WebView importer
+                        navController.popBackStack()
+                    },
+                    onNavigateToFilePicker = {
+                        // TODO: Open file picker for Excel/CSV/ICS
+                        navController.popBackStack()
+                    },
+                    onNavigateToImagePicker = {
+                        // TODO: Open camera/gallery picker
+                        navController.popBackStack()
+                    },
+                    onNavigateToShareCode = {
+                        // TODO: Navigate to share code input
+                        navController.popBackStack()
+                    },
+                    onNavigateToManualAdd = {
+                        navController.navigate(Routes.COURSE_EDITOR)
+                    }
+                )
+            }
+            composable(Routes.ONBOARDING) {
+                OnboardingScreen(
+                    onFinish = { navController.navigate(Routes.SCHEDULE) { popUpTo(Routes.ONBOARDING) { inclusive = true } } },
+                    onSkip = { navController.navigate(Routes.SCHEDULE) { popUpTo(Routes.ONBOARDING) { inclusive = true } } }
                 )
             }
         }

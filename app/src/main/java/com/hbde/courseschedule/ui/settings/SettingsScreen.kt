@@ -67,6 +67,7 @@ fun SettingsScreen(
     val reminderMinutes by viewModel.reminderMinutes.collectAsState()
     val ttsEnabled by viewModel.ttsEnabled.collectAsState()
     val autoSilentEnabled by viewModel.autoSilentEnabled.collectAsState()
+    val calendarSyncEnabled by viewModel.calendarSyncEnabled.collectAsState()
 
     // Appearance states
     val backgroundType by viewModel.backgroundType.collectAsState()
@@ -120,6 +121,16 @@ fun SettingsScreen(
                 subtitle = "上课期间自动静音",
                 checked = autoSilentEnabled,
                 onCheckedChange = viewModel::onAutoSilentEnabledChange
+            )
+
+            HorizontalDivider()
+
+            // Calendar sync switch
+            SettingsSwitchItem(
+                title = "同步到系统日历",
+                subtitle = "将课程和日程同步到系统日历",
+                checked = calendarSyncEnabled,
+                onCheckedChange = viewModel::onCalendarSyncEnabledChange
             )
 
             HorizontalDivider()

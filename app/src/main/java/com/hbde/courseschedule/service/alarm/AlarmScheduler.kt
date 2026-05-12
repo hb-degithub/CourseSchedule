@@ -30,6 +30,7 @@ class AlarmScheduler @Inject constructor(
         private const val TAG = "AlarmScheduler"
         const val ACTION_COURSE_REMINDER = "com.hbde.courseschedule.ACTION_COURSE_REMINDER"
         const val ACTION_CLASS_END = "com.hbde.courseschedule.ACTION_CLASS_END"
+        const val ACTION_UPDATE_LIVE_ACTIVITY = "com.hbde.courseschedule.ACTION_UPDATE_LIVE_ACTIVITY"
         const val EXTRA_COURSE_ID = "extra_course_id"
         const val EXTRA_COURSE_NAME = "extra_course_name"
         const val EXTRA_CLASSROOM = "extra_classroom"
@@ -122,6 +123,63 @@ class AlarmScheduler @Inject constructor(
         )
 
         scheduleExactAlarm(endTime, endPendingIntent)
+
+        // 设置实时活动每分钟更新闹钟
+        scheduleLiveActivityUpdates(course, reminderTime, endTime)
+    }
+
+    /**
+     * 设置实时活动每分钟更新闹钟
+     * 从提醒触发时间开始，到课程结束，每分钟触发一次更新
+     */
+    private fun scheduleLiveActivityUpdates(
+        course: CourseEntity,
+        startTimeMillis: Long,
+        endTimeMillis: Long
+    ) {
+        var currentTime = startTimeMillis + 60_000 // 从提醒后1分钟开始
+        var requestCodeOffset = 10
+
+        while (currentTime < endTimeMillis) {
+            val updateIntent = createAlarmIntent(
+                action = ACTION_UPDATE_LIVE_ACTIVITY,
+                courseId = course.id,
+                courseName = course.name,
+                classroom = course.classroom,
+                minutesBefore = 0,
+            )
+            val updatePendingIntent = PendingIntent.getBroadcast(
+                context,
+                generateRequestCode(course.id, ACTION_UPDATE_LIVE_ACTIVITY) + requestCodeOffset,
+                updateIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+            )
+
+            scheduleExactAlarm(currentTime, updatePendingIntent)
+
+            currentTime += 60_000 // 每分钟一次
+            requestCodeOffset++
+        }
+    }
+
+    /**
+     * 取消课程的实时活动更新闹钟
+     */
+    fun cancelLiveActivityUpdates(courseId: Int) {
+        // 取消所有可能的更新闹钟（requestCodeOffset 范围 10-100 足够覆盖）
+        for (offset in 10..100) {
+            val updateIntent = Intent(context, AlarmReceiver::class.java).apply {
+                action = ACTION_UPDATE_LIVE_ACTIVITY
+            }
+            val updatePendingIntent = PendingIntent.getBroadcast(
+                context,
+                generateRequestCode(courseId, ACTION_UPDATE_LIVE_ACTIVITY) + offset,
+                updateIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+            )
+            alarmManager.cancel(updatePendingIntent)
+            updatePendingIntent.cancel()
+        }
     }
 
     /**
@@ -153,6 +211,9 @@ class AlarmScheduler @Inject constructor(
         )
         alarmManager.cancel(endPendingIntent)
         endPendingIntent.cancel()
+
+        // 取消实时活动更新
+        cancelLiveActivityUpdates(courseId)
     }
 
     /**
@@ -290,9 +351,10 @@ class AlarmScheduler @Inject constructor(
      * 生成唯一的 requestCode
      */
     private fun generateRequestCode(courseId: Int, action: String): Int {
-        return courseId * 10 + when (action) {
+        return courseId * 100 + when (action) {
             ACTION_COURSE_REMINDER -> 1
             ACTION_CLASS_END -> 2
+            ACTION_UPDATE_LIVE_ACTIVITY -> 3
             else -> 0
         }
     }

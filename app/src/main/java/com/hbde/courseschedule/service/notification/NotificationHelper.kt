@@ -27,6 +27,7 @@ class NotificationHelper @Inject constructor(
         const val CHANNEL_IMPORTANT = "channel_important"
         const val CHANNEL_NORMAL = "channel_normal"
         const val CHANNEL_DAILY_OVERVIEW = "channel_daily_overview"
+        const val CHANNEL_LIVE_ACTIVITY = "live_activity_channel"
 
         const val ACTION_ACKNOWLEDGE = "com.hbde.courseschedule.ACTION_ACKNOWLEDGE"
         const val ACTION_SNOOZE = "com.hbde.courseschedule.ACTION_SNOOZE"
@@ -79,8 +80,20 @@ class NotificationHelper @Inject constructor(
             description = "每天早上发送的当日课程概览"
         }
 
+        // 实时活动通知渠道（灵动岛/实况窗/焦点通知）
+        val liveActivityChannel = NotificationChannel(
+            CHANNEL_LIVE_ACTIVITY,
+            "实时活动",
+            NotificationManager.IMPORTANCE_HIGH,
+        ).apply {
+            description = "课程实时活动通知，显示课程倒计时和上课状态"
+            enableVibration(false)
+            enableLights(false)
+            setSound(null, null)
+        }
+
         notificationManager.createNotificationChannels(
-            listOf(importantChannel, normalChannel, dailyOverviewChannel),
+            listOf(importantChannel, normalChannel, dailyOverviewChannel, liveActivityChannel),
         )
     }
 

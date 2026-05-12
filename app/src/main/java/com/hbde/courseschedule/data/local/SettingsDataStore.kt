@@ -42,6 +42,12 @@ class SettingsDataStore @Inject constructor(
         val BORDER_WIDTH = intPreferencesKey("border_width") // dp
         val COURSE_NAME_FONT_SIZE = intPreferencesKey("course_name_font_size") // sp
         val CLASSROOM_FONT_SIZE = intPreferencesKey("classroom_font_size") // sp
+
+        // Calendar sync
+        val CALENDAR_SYNC_ENABLED = booleanPreferencesKey("calendar_sync_enabled")
+
+        // Onboarding
+        val HAS_COMPLETED_ONBOARDING = booleanPreferencesKey("has_completed_onboarding")
     }
 
     val reminderMinutes: Flow<Int> = dataStore.data
@@ -192,6 +198,30 @@ class SettingsDataStore @Inject constructor(
     suspend fun setClassroomFontSize(size: Int) {
         dataStore.edit { preferences ->
             preferences[CLASSROOM_FONT_SIZE] = size.coerceIn(10, 16)
+        }
+    }
+
+    // Calendar sync
+    val calendarSyncEnabled: Flow<Boolean> = dataStore.data
+        .map { preferences ->
+            preferences[CALENDAR_SYNC_ENABLED] ?: false
+        }
+
+    suspend fun setCalendarSyncEnabled(enabled: Boolean) {
+        dataStore.edit { preferences ->
+            preferences[CALENDAR_SYNC_ENABLED] = enabled
+        }
+    }
+
+    // Onboarding
+    val hasCompletedOnboarding: Flow<Boolean> = dataStore.data
+        .map { preferences ->
+            preferences[HAS_COMPLETED_ONBOARDING] ?: false
+        }
+
+    suspend fun setHasCompletedOnboarding(completed: Boolean) {
+        dataStore.edit { preferences ->
+            preferences[HAS_COMPLETED_ONBOARDING] = completed
         }
     }
 }

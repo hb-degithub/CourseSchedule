@@ -80,4 +80,10 @@ object AppModule {
     fun provideAlarmManager(@ApplicationContext context: Context): android.app.AlarmManager {
         return context.getSystemService(Context.ALARM_SERVICE) as android.app.AlarmManager
     }
+
+    @Provides
+    @Singleton
+    fun provideNotificationHelper(@ApplicationContext context: Context): com.hbde.courseschedule.service.notification.NotificationHelper {
+        return com.hbde.courseschedule.service.notification.NotificationHelper(context)
+    }
 }

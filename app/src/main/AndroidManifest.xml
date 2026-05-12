@@ -80,6 +80,13 @@
                 android:resource="@xml/schedule_widget_info" />
         </receiver>
 
+        <!-- LiveActivityService：用于保活悬浮窗实时活动 -->
+        <service
+            android:name=".service.liveactivity.LiveActivityService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+
         <!-- WorkManager初始化（禁用默认初始化器，使用 Hilt 自定义配置） -->
         <provider
             android:name="androidx.startup.InitializationProvider"
@@ -91,7 +98,6 @@
                 android:value="androidx.startup"
                 tools:node="remove" />
         </provider>
-
 
     </application>
 
