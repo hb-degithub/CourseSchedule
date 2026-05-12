@@ -91,3 +91,9 @@ Thumbs.db
 # Windows
 *.tmp
 *.temp
+
+# IDE
+.vscode/
+
+# Claude Code
+.claude/
