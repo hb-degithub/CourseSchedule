@@ -1,5 +1,12 @@
 package com.hbde.courseschedule.ui.schedule.components
 
+import android.net.Uri
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.InfiniteRepeatableSpec
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -19,17 +26,25 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
+import coil.compose.AsyncImage
 import com.hbde.courseschedule.data.local.entity.CourseEntity
+import com.hbde.courseschedule.data.local.entity.ThemeConfigEntity
+import com.hbde.courseschedule.data.local.entity.TimeSlot
+import com.hbde.courseschedule.utils.CourseStatusCalculator
 import java.time.LocalTime
 
 private const val PERIODS_PER_DAY = 12
@@ -60,6 +75,12 @@ private val NODE_END_TIMES = listOf(
  * @param courses 当前周过滤后的课程列表
  * @param currentDayOfWeek 今天星期几 (1..7)
  * @param currentTime 当前时间，用于绘制时间指示线；null 则不绘制
+ * @param timeSlots 作息时间表，用于判断当前课程
+ * @param themeConfig 主题配置
+ * @param backgroundType 背景类型 "color" / "image"
+ * @param backgroundValue 背景值（颜色 hex 或图片 URI）
+ * @param backgroundOpacity 背景透明度
+ * @param borderWidth 网格边框粗细 dp
  * @param onEmptyCellClick 点击空白格子回调 (dayOfWeek, startNode)
  * @param onCourseClick 点击课程块回调
  */
@@ -68,42 +89,118 @@ fun ScheduleGrid(
     courses: List<CourseEntity>,
     currentDayOfWeek: Int,
     currentTime: LocalTime? = null,
+    timeSlots: List<TimeSlot> = CourseStatusCalculator.DEFAULT_TIME_SLOTS,
+    themeConfig: ThemeConfigEntity? = null,
+    backgroundType: String = "color",
+    backgroundValue: String? = null,
+    backgroundOpacity: Float = 1.0f,
+    borderWidth: Int = 0,
     onEmptyCellClick: (dayOfWeek: Int, startNode: Int) -> Unit = { _, _ -> },
     onCourseClick: (CourseEntity) -> Unit = {}
 ) {
-    Column(modifier = Modifier.fillMaxSize()) {
-        // 星期标题行
-        DayHeaderRow(currentDayOfWeek = currentDayOfWeek)
+    Box(modifier = Modifier.fillMaxSize()) {
+        // 背景层
+        ScheduleBackground(
+            backgroundType = backgroundType,
+            backgroundValue = backgroundValue,
+            backgroundOpacity = backgroundOpacity
+        )
 
-        // 课程网格
-        Box(modifier = Modifier.fillMaxSize()) {
-            LazyColumn(modifier = Modifier.fillMaxSize()) {
-                items(PERIODS_PER_DAY) { nodeIndex ->
-                    val node = nodeIndex + 1
-                    PeriodRow(
-                        node = node,
-                        courses = courses,
+        Column(modifier = Modifier.fillMaxSize()) {
+            // 星期标题行
+            DayHeaderRow(
+                currentDayOfWeek = currentDayOfWeek,
+                themeConfig = themeConfig,
+                borderWidth = borderWidth
+            )
+
+            // 课程网格
+            Box(modifier = Modifier.fillMaxSize()) {
+                LazyColumn(modifier = Modifier.fillMaxSize()) {
+                    items(PERIODS_PER_DAY) { nodeIndex ->
+                        val node = nodeIndex + 1
+                        PeriodRow(
+                            node = node,
+                            courses = courses,
+                            currentDayOfWeek = currentDayOfWeek,
+                            timeSlots = timeSlots,
+                            themeConfig = themeConfig,
+                            borderWidth = borderWidth,
+                            onEmptyCellClick = onEmptyCellClick,
+                            onCourseClick = onCourseClick
+                        )
+                    }
+                }
+
+                // 当前时间指示线（仅当天显示）
+                currentTime?.let { time ->
+                    CurrentTimeIndicator(
+                        currentTime = time,
                         currentDayOfWeek = currentDayOfWeek,
-                        onEmptyCellClick = onEmptyCellClick,
-                        onCourseClick = onCourseClick
+                        modifier = Modifier.fillMaxSize()
                     )
                 }
-            }
-
-            // 当前时间指示线（仅当天显示）
-            currentTime?.let { time ->
-                CurrentTimeIndicator(
-                    currentTime = time,
-                    currentDayOfWeek = currentDayOfWeek,
-                    modifier = Modifier.fillMaxSize()
-                )
             }
         }
     }
 }
 
 @Composable
-private fun DayHeaderRow(currentDayOfWeek: Int) {
+private fun ScheduleBackground(
+    backgroundType: String,
+    backgroundValue: String?,
+    backgroundOpacity: Float
+) {
+    when (backgroundType) {
+        "image" -> {
+            if (!backgroundValue.isNullOrBlank()) {
+                AsyncImage(
+                    model = Uri.parse(backgroundValue),
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
+            // 透明度遮罩
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        MaterialTheme.colorScheme.background.copy(
+                            alpha = 1f - backgroundOpacity.coerceIn(0f, 1f)
+                        )
+                    )
+            )
+        }
+        else -> {
+            val bgColor = try {
+                backgroundValue?.let { Color(android.graphics.Color.parseColor(it)) }
+                    ?: MaterialTheme.colorScheme.background
+            } catch (_: Exception) {
+                MaterialTheme.colorScheme.background
+            }
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(bgColor.copy(alpha = backgroundOpacity.coerceIn(0f, 1f)))
+            )
+        }
+    }
+}
+
+@Composable
+private fun DayHeaderRow(
+    currentDayOfWeek: Int,
+    themeConfig: ThemeConfigEntity?,
+    borderWidth: Int
+) {
+    val borderWidthDp = borderWidth.coerceIn(0, 2).dp
+    val gridLineColor = themeConfig?.let {
+        val primary = Color(it.primaryColor)
+        if (primary.luminance() > 0.5f) Color.Black.copy(alpha = 0.15f)
+        else Color.White.copy(alpha = 0.2f)
+    } ?: MaterialTheme.colorScheme.outlineVariant
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -115,7 +212,7 @@ private fun DayHeaderRow(currentDayOfWeek: Int) {
             modifier = Modifier
                 .width(52.dp)
                 .fillMaxHeight()
-                .border(0.5.dp, MaterialTheme.colorScheme.outlineVariant),
+                .border(borderWidthDp, gridLineColor),
             contentAlignment = Alignment.Center
         ) {
             Text(
@@ -136,7 +233,7 @@ private fun DayHeaderRow(currentDayOfWeek: Int) {
                         if (isToday) MaterialTheme.colorScheme.primaryContainer
                         else MaterialTheme.colorScheme.surfaceVariant
                     )
-                    .border(0.5.dp, MaterialTheme.colorScheme.outlineVariant),
+                    .border(borderWidthDp, gridLineColor),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
@@ -155,11 +252,20 @@ private fun PeriodRow(
     node: Int,
     courses: List<CourseEntity>,
     currentDayOfWeek: Int,
+    timeSlots: List<TimeSlot>,
+    themeConfig: ThemeConfigEntity?,
+    borderWidth: Int,
     onEmptyCellClick: (dayOfWeek: Int, startNode: Int) -> Unit,
     onCourseClick: (CourseEntity) -> Unit
 ) {
     val rowHeight = 64.dp
     val nodeIndex = node - 1
+    val borderWidthDp = borderWidth.coerceIn(0, 2).dp
+    val gridLineColor = themeConfig?.let {
+        val primary = Color(it.primaryColor)
+        if (primary.luminance() > 0.5f) Color.Black.copy(alpha = 0.15f)
+        else Color.White.copy(alpha = 0.2f)
+    } ?: MaterialTheme.colorScheme.outlineVariant
 
     Row(
         modifier = Modifier
@@ -172,7 +278,7 @@ private fun PeriodRow(
                 .width(52.dp)
                 .fillMaxHeight()
                 .background(MaterialTheme.colorScheme.surface)
-                .border(0.5.dp, MaterialTheme.colorScheme.outlineVariant),
+                .border(borderWidthDp, gridLineColor),
             contentAlignment = Alignment.Center
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -207,7 +313,7 @@ private fun PeriodRow(
                 it.startNode <= node && it.endNode >= node
             }
 
-            // 计算每个课程在此 node 的“显示优先级”：只有 startNode == node 时才渲染整块
+            // 计算每个课程在此 node 的"显示优先级"：只有 startNode == node 时才渲染整块
             val coursesToRender = overlappingCourses.filter { it.startNode == node }
 
             // 计算重叠：找到所有与这些课程时间重叠的其他课程
@@ -228,10 +334,10 @@ private fun PeriodRow(
                 .background(
                     when {
                         isToday -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
-                        else -> MaterialTheme.colorScheme.surface
+                        else -> MaterialTheme.colorScheme.surface.copy(alpha = 0.7f)
                     }
                 )
-                .border(0.5.dp, MaterialTheme.colorScheme.outlineVariant)
+                .border(borderWidthDp, gridLineColor)
                 .clickable(enabled = coursesInNode.isEmpty()) {
                     onEmptyCellClick(day, node)
                 }
@@ -246,11 +352,16 @@ private fun PeriodRow(
                     // 计算该课程块应占的高度 = (endNode - startNode + 1) * rowHeight
                     val span = course.endNode - course.startNode + 1
 
+                    // 判断是否是当前正在上的课程
+                    val isCurrentlyActive = isToday && CourseStatusCalculator.isCurrentlyActive(course, timeSlots)
+
                     CourseBlockItem(
                         course = course,
                         span = span,
                         overlapIndex = indexInGroup,
                         overlapCount = count,
+                        isCurrentlyActive = isCurrentlyActive,
+                        themeConfig = themeConfig,
                         onClick = onCourseClick,
                         modifier = Modifier.zIndex(1f)
                     )
@@ -296,12 +407,30 @@ private fun CourseBlockItem(
     span: Int,
     overlapIndex: Int,
     overlapCount: Int,
+    isCurrentlyActive: Boolean,
+    themeConfig: ThemeConfigEntity?,
     onClick: (CourseEntity) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val baseColor = course.color?.let { Color(it) } ?: MaterialTheme.colorScheme.primaryContainer
     val textColor = if (baseColor.luminance() > 0.5f) Color.Black else Color.White
     val rowHeight = 64.dp
+
+    // 呼吸动画效果（仅当前课程）
+    val infiniteTransition = rememberInfiniteTransition(label = "pulse")
+    val pulseAlpha by infiniteTransition.animateFloat(
+        initialValue = 0.6f,
+        targetValue = 1.0f,
+        animationSpec = InfiniteRepeatableSpec(
+            animation = tween(1200, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "pulseAlpha"
+    )
+
+    val cornerRadius = themeConfig?.cornerRadius?.dp ?: 4.dp
+    val courseNameSize = themeConfig?.fontSize?.sp ?: 11.sp
+    val classroomSize = ((themeConfig?.fontSize ?: 14) - 2).coerceAtLeast(9).sp
 
     Box(
         modifier = modifier
@@ -318,7 +447,25 @@ private fun CourseBlockItem(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .clip(RoundedCornerShape(4.dp))
+                .clip(RoundedCornerShape(cornerRadius))
+                .then(
+                    if (isCurrentlyActive) {
+                        Modifier
+                            .border(
+                                width = 3.dp,
+                                color = Color(0xFF4CAF50).copy(alpha = pulseAlpha),
+                                shape = RoundedCornerShape(cornerRadius)
+                            )
+                            .drawWithContent {
+                                drawContent()
+                                // 绘制外发光效果
+                                drawRect(
+                                    color = Color(0xFF4CAF50).copy(alpha = 0.15f * pulseAlpha),
+                                    size = size
+                                )
+                            }
+                    } else Modifier
+                )
                 .background(baseColor)
                 .clickable { onClick(course) }
                 .padding(horizontal = 3.dp, vertical = 2.dp)
@@ -327,17 +474,17 @@ private fun CourseBlockItem(
                 Text(
                     text = course.name,
                     color = textColor,
-                    fontSize = 11.sp,
+                    fontSize = courseNameSize,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
-                    lineHeight = 13.sp,
+                    lineHeight = (courseNameSize.value + 2).sp,
                     modifier = Modifier.fillMaxWidth()
                 )
                 if (!course.classroom.isNullOrBlank()) {
                     Text(
                         text = course.classroom,
                         color = textColor.copy(alpha = 0.85f),
-                        fontSize = 9.sp,
+                        fontSize = classroomSize,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.fillMaxWidth()

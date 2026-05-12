@@ -4,6 +4,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.util.Log
+import com.hbde.courseschedule.data.local.SettingsDataStore
 import com.hbde.courseschedule.service.SilentModeManager
 import com.hbde.courseschedule.service.notification.NotificationHelper
 import com.hbde.courseschedule.service.tts.TtsManager
@@ -11,6 +12,7 @@ import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -33,10 +35,13 @@ class AlarmReceiver : BroadcastReceiver() {
     @Inject
     lateinit var alarmScheduler: AlarmScheduler
 
+    @Inject
+    lateinit var settingsDataStore: SettingsDataStore
+
     override fun onReceive(context: Context, intent: Intent) {
         when (intent.action) {
             AlarmScheduler.ACTION_COURSE_REMINDER -> {
-                handleCourseReminder(intent)
+                handleCourseReminder(context, intent)
             }
             AlarmScheduler.ACTION_CLASS_END -> {
                 handleClassEnd()
@@ -51,12 +56,12 @@ class AlarmReceiver : BroadcastReceiver() {
                 }
             }
             NotificationHelper.ACTION_SNOOZE -> {
-                handleSnooze(intent)
+                handleSnooze(context, intent)
             }
         }
     }
 
-    private fun handleCourseReminder(intent: Intent) {
+    private fun handleCourseReminder(context: Context, intent: Intent) {
         val courseId = intent.getIntExtra(AlarmScheduler.EXTRA_COURSE_ID, -1)
         val courseName = intent.getStringExtra(AlarmScheduler.EXTRA_COURSE_NAME) ?: "未知课程"
         val classroom = intent.getStringExtra(AlarmScheduler.EXTRA_CLASSROOM)
@@ -72,25 +77,27 @@ class AlarmReceiver : BroadcastReceiver() {
             courseId = courseId,
         )
 
-        // TTS 播报
-        ttsManager.init()
-        val ttsMessage = buildString {
-            append("提醒：$courseName")
-            if (!classroom.isNullOrBlank()) {
-                append("，教室在$classroom")
-            }
-            append("，即将开始上课")
-        }
-        ttsManager.speak(ttsMessage)
-
-        // 上课前启用静音模式（避免上课期间铃声打扰）
         // 使用 goAsync() 返回的 pendingResult 生命周期，避免内存泄漏
         val pendingResult = goAsync()
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
             try {
-                silentModeManager.enableSilentMode()
+                // 如果用户开启了 TTS，调用 TtsManager 播报
+                val ttsEnabled = settingsDataStore.ttsEnabled.first()
+                if (ttsEnabled) {
+                    ttsManager.speakCourseReminder(
+                        courseName = courseName,
+                        classroom = classroom ?: "",
+                        minutes = minutesBefore,
+                    )
+                }
+
+                // 如果用户开启了自动静音，调用 SilentModeManager 切换静音/振动
+                val autoSilentEnabled = settingsDataStore.autoSilentEnabled.first()
+                if (autoSilentEnabled) {
+                    silentModeManager.enterSilentMode(android.media.AudioManager.RINGER_MODE_VIBRATE)
+                }
             } catch (e: Exception) {
-                Log.e(TAG, "启用静音模式失败", e)
+                Log.e(TAG, "处理课程提醒失败", e)
             } finally {
                 pendingResult.finish()
             }
@@ -104,7 +111,7 @@ class AlarmReceiver : BroadcastReceiver() {
         val pendingResult = goAsync()
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
             try {
-                silentModeManager.disableSilentMode()
+                silentModeManager.restoreRingerMode()
             } catch (e: Exception) {
                 Log.e(TAG, "恢复铃声模式失败", e)
             } finally {
@@ -113,7 +120,7 @@ class AlarmReceiver : BroadcastReceiver() {
         }
     }
 
-    private fun handleSnooze(intent: Intent) {
+    private fun handleSnooze(context: Context, intent: Intent) {
         val notificationId = intent.getIntExtra(
             NotificationHelper.EXTRA_NOTIFICATION_ID,
             -1,

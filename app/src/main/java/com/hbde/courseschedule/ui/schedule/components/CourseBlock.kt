@@ -19,21 +19,33 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.hbde.courseschedule.data.local.entity.CourseEntity
+import com.hbde.courseschedule.data.local.entity.ThemeConfigEntity
 
 /**
  * 课程块组件
  * 根据 CourseEntity 渲染，支持自动文字颜色对比
+ *
+ * @param course 课程实体
+ * @param overlapIndex 在重叠组中的索引
+ * @param overlapCount 重叠组大小
+ * @param themeConfig 主题配置，用于圆角和字体大小
+ * @param onClick 点击回调
  */
 @Composable
 fun CourseBlock(
     course: CourseEntity,
     overlapIndex: Int = 0,
     overlapCount: Int = 1,
+    themeConfig: ThemeConfigEntity? = null,
     onClick: (CourseEntity) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val baseColor = course.color?.let { Color(it) } ?: MaterialTheme.colorScheme.primaryContainer
-    val textColor = if (baseColor.luminance() > 0.5f) Color.Black else Color.White
+    val textColor = baseColor.autoTextColor()
+
+    val cornerRadius = themeConfig?.cornerRadius?.dp ?: 4.dp
+    val courseNameSize = themeConfig?.fontSize?.sp ?: 11.sp
+    val classroomSize = ((themeConfig?.fontSize ?: 14) - 2).coerceAtLeast(9).sp
 
     val fraction = 1f / overlapCount
     val startFraction = overlapIndex * fraction
@@ -42,7 +54,7 @@ fun CourseBlock(
         modifier = modifier
             .fillMaxSize()
             .padding(1.dp)
-            .clip(RoundedCornerShape(4.dp))
+            .clip(RoundedCornerShape(cornerRadius))
             .clickable { onClick(course) }
     ) {
         Box(
@@ -50,19 +62,19 @@ fun CourseBlock(
                 .fillMaxSize()
                 .padding(
                     start = if (overlapCount > 1) {
-                        (startFraction * 100).dp // 使用 fraction 计算相对位置
+                        (startFraction * 100).dp
                     } else 0.dp,
                     end = if (overlapCount > 1) {
                         ((1f - startFraction - fraction) * 100).dp
                     } else 0.dp
                 )
-                .clip(RoundedCornerShape(4.dp))
+                .clip(RoundedCornerShape(cornerRadius))
         ) {
             // 背景色填充
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .clip(RoundedCornerShape(4.dp))
+                    .clip(RoundedCornerShape(cornerRadius))
                     .then(
                         if (overlapCount > 1) {
                             Modifier.fillMaxWidth(fraction)
@@ -78,17 +90,17 @@ fun CourseBlock(
                     Text(
                         text = course.name,
                         color = textColor,
-                        fontSize = 11.sp,
+                        fontSize = courseNameSize,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
-                        lineHeight = 13.sp,
+                        lineHeight = (courseNameSize.value + 2).sp,
                         modifier = Modifier.fillMaxWidth()
                     )
                     if (!course.classroom.isNullOrBlank()) {
                         Text(
                             text = course.classroom,
                             color = textColor.copy(alpha = 0.85f),
-                            fontSize = 9.sp,
+                            fontSize = classroomSize,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.fillMaxWidth()

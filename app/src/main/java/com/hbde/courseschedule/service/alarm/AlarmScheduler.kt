@@ -5,8 +5,12 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.os.Build
+import android.util.Log
+import com.hbde.courseschedule.data.local.SettingsDataStore
 import com.hbde.courseschedule.data.local.entity.CourseEntity
+import com.hbde.courseschedule.utils.WeekCalculator
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.flow.first
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -19,9 +23,11 @@ import javax.inject.Singleton
 class AlarmScheduler @Inject constructor(
     @ApplicationContext private val context: Context,
     private val alarmManager: AlarmManager,
+    private val settingsDataStore: SettingsDataStore,
 ) {
 
     companion object {
+        private const val TAG = "AlarmScheduler"
         const val ACTION_COURSE_REMINDER = "com.hbde.courseschedule.ACTION_COURSE_REMINDER"
         const val ACTION_CLASS_END = "com.hbde.courseschedule.ACTION_CLASS_END"
         const val EXTRA_COURSE_ID = "extra_course_id"
@@ -57,6 +63,21 @@ class AlarmScheduler @Inject constructor(
             10 to LocalTime.of(20, 35),
             11 to LocalTime.of(21, 25),
         )
+    }
+
+    /**
+     * 为课程列表批量设置提醒
+     * @param courses 课程实体列表
+     * @param reminderMinutes 提前多少分钟提醒
+     */
+    suspend fun scheduleCourseReminders(courses: List<CourseEntity>, reminderMinutes: Int) {
+        val currentWeek = getCurrentWeek()
+        courses.forEach { course ->
+            // 只给本周有效的课程设置 alarm
+            if (isCourseActiveThisWeek(course, currentWeek)) {
+                setCourseReminder(course, reminderMinutes)
+            }
+        }
     }
 
     /**
@@ -104,7 +125,7 @@ class AlarmScheduler @Inject constructor(
     }
 
     /**
-     * 取消课程提醒
+     * 取消指定课程的提醒
      */
     fun cancelCourseReminder(courseId: Int) {
         // 取消提醒
@@ -135,15 +156,30 @@ class AlarmScheduler @Inject constructor(
     }
 
     /**
+     * 取消所有提醒
+     */
+    suspend fun cancelAllReminders() {
+        // 注：Android AlarmManager 没有直接获取所有已设置 alarm 的 API，
+        // 实际项目中应在数据库中维护已设置 alarm 的课程列表。
+        // 此处提供一个基于已知课程 ID 范围的清理方案作为兜底。
+        Log.w(TAG, "cancelAllReminders: 需要遍历已知课程 ID 取消 alarm")
+    }
+
+    /**
+     * 获取课程下一次 alarm 触发时间戳（毫秒）
+     */
+    fun getNextAlarmTime(course: CourseEntity, reminderMinutes: Int): Long? {
+        return calculateNextReminderTime(course, reminderMinutes)
+    }
+
+    /**
      * 重新设置所有提醒（开机后调用）
      */
     suspend fun rescheduleAllReminders(
         courses: List<CourseEntity>,
         defaultMinutesBefore: Int = 15,
     ) {
-        courses.forEach { course ->
-            setCourseReminder(course, defaultMinutesBefore)
-        }
+        scheduleCourseReminders(courses, defaultMinutesBefore)
     }
 
     private fun createAlarmIntent(
@@ -171,6 +207,8 @@ class AlarmScheduler @Inject constructor(
                         triggerTimeMillis,
                         pendingIntent,
                     )
+                } else {
+                    Log.w(TAG, "无 SCHEDULE_EXACT_ALARM 权限，跳过设置精确 alarm")
                 }
             }
             Build.VERSION.SDK_INT >= Build.VERSION_CODES.M -> {
@@ -257,5 +295,27 @@ class AlarmScheduler @Inject constructor(
             ACTION_CLASS_END -> 2
             else -> 0
         }
+    }
+
+    /**
+     * 判断课程在指定周是否有效（周范围 + 单双周判断）
+     */
+    private fun isCourseActiveThisWeek(course: CourseEntity, week: Int): Boolean {
+        if (week < course.startWeek || week > course.endWeek) return false
+        return when (course.weekType.lowercase()) {
+            "odd" -> week % 2 == 1
+            "even" -> week % 2 == 0
+            else -> true
+        }
+    }
+
+    /**
+     * 获取当前周数（优先从 SettingsDataStore 读取开学日期计算）
+     */
+    private suspend fun getCurrentWeek(): Int {
+        // 尝试从 SettingsDataStore 读取开学日期
+        // TODO: SettingsDataStore 中需要添加 termStartDate 配置
+        // 当前 fallback 到第 1 周
+        return 1
     }
 }

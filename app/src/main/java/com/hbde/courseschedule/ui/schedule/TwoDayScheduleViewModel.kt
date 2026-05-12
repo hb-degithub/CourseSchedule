@@ -2,13 +2,21 @@ package com.hbde.courseschedule.ui.schedule
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.hbde.courseschedule.data.local.dao.TimeTableDao
 import com.hbde.courseschedule.data.local.entity.CourseEntity
+import com.hbde.courseschedule.data.local.entity.TimeSlot
+import com.hbde.courseschedule.data.local.entity.toTimeSlotList
+import com.hbde.courseschedule.data.model.CourseListItemStatus
 import com.hbde.courseschedule.data.repository.CourseRepository
+import com.hbde.courseschedule.utils.CourseStatusCalculator
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 import java.util.Calendar
 import javax.inject.Inject
@@ -17,28 +25,55 @@ enum class DayTab {
     TODAY, TOMORROW
 }
 
+/**
+ * 课程列表项，包含状态和倒计时信息
+ */
 data class CourseWithStatus(
     val course: CourseEntity,
-    val isCurrent: Boolean = false
+    val status: CourseListItemStatus = CourseListItemStatus.UPCOMING,
+    val minutesUntilStart: Int = 0,
+    val minutesUntilEnd: Int = 0
 )
 
 data class TwoDayScheduleUiState(
     val selectedTab: DayTab = DayTab.TODAY,
     val todayCourses: List<CourseWithStatus> = emptyList(),
     val tomorrowCourses: List<CourseWithStatus> = emptyList(),
+    val timeSlots: List<TimeSlot> = CourseStatusCalculator.DEFAULT_TIME_SLOTS,
     val isLoading: Boolean = false
 )
 
 @HiltViewModel
 class TwoDayScheduleViewModel @Inject constructor(
-    private val courseRepository: CourseRepository
+    private val courseRepository: CourseRepository,
+    private val timeTableDao: TimeTableDao
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(TwoDayScheduleUiState(isLoading = true))
     val uiState: StateFlow<TwoDayScheduleUiState> = _uiState.asStateFlow()
 
+    private val _timeSlots = MutableStateFlow<List<TimeSlot>>(CourseStatusCalculator.DEFAULT_TIME_SLOTS)
+
     init {
+        loadDefaultTimeTable()
         loadCourses()
+        startPeriodicRefresh()
+    }
+
+    private fun loadDefaultTimeTable() {
+        viewModelScope.launch {
+            try {
+                val timeTable = timeTableDao.getDefaultTimeTable()
+                timeTable?.let {
+                    val slots = it.timeSlots.toTimeSlotList()
+                    if (slots.isNotEmpty()) {
+                        _timeSlots.value = slots
+                    }
+                }
+            } catch (_: Exception) {
+                // 使用默认时间表
+            }
+        }
     }
 
     fun selectTab(tab: DayTab) {
@@ -64,14 +99,18 @@ class TwoDayScheduleViewModel @Inject constructor(
                 val todayWithStatus = sortedToday.map { course ->
                     CourseWithStatus(
                         course = course,
-                        isCurrent = isCourseCurrentlyActive(course)
+                        status = CourseStatusCalculator.calculateItemStatus(course, _timeSlots.value),
+                        minutesUntilStart = CourseStatusCalculator.calculateMinutesUntilStart(course, _timeSlots.value),
+                        minutesUntilEnd = CourseStatusCalculator.calculateMinutesUntilEnd(course, _timeSlots.value)
                     )
                 }
 
                 val tomorrowWithStatus = sortedTomorrow.map { course ->
                     CourseWithStatus(
                         course = course,
-                        isCurrent = false
+                        status = CourseListItemStatus.UPCOMING, // 明天的课都是未开始
+                        minutesUntilStart = 0,
+                        minutesUntilEnd = 0
                     )
                 }
 
@@ -79,6 +118,7 @@ class TwoDayScheduleViewModel @Inject constructor(
                     selectedTab = _uiState.value.selectedTab,
                     todayCourses = todayWithStatus,
                     tomorrowCourses = tomorrowWithStatus,
+                    timeSlots = _timeSlots.value,
                     isLoading = false
                 )
             }.collect { state ->
@@ -88,52 +128,27 @@ class TwoDayScheduleViewModel @Inject constructor(
     }
 
     /**
-     * Check if a course is currently active based on the current time.
-     * This is a simplified check based on startNode/endNode.
-     * TODO: Integrate with TimeTableEntity for accurate time mapping.
+     * 每分钟刷新一次课程状态
      */
-    private fun isCourseCurrentlyActive(course: CourseEntity): Boolean {
-        val calendar = Calendar.getInstance()
-        val currentHour = calendar.get(Calendar.HOUR_OF_DAY)
-        val currentMinute = calendar.get(Calendar.MINUTE)
-        val currentTimeMinutes = currentHour * 60 + currentMinute
+    private fun startPeriodicRefresh() {
+        viewModelScope.launch {
+            while (true) {
+                delay(60000) // 每分钟刷新
+                refreshStatus()
+            }
+        }
+    }
 
-        // Approximate time mapping for nodes (standard Chinese university schedule)
-        // TODO: Replace with actual TimeTable lookup when available
-        val nodeStartTimes = mapOf(
-            1 to 8 * 60 + 0,    // 08:00
-            2 to 8 * 60 + 50,   // 08:50
-            3 to 10 * 60 + 10,  // 10:10
-            4 to 11 * 60 + 0,   // 11:00
-            5 to 14 * 60 + 0,   // 14:00
-            6 to 14 * 60 + 50,  // 14:50
-            7 to 16 * 60 + 10,  // 16:10
-            8 to 17 * 60 + 0,   // 17:00
-            9 to 19 * 60 + 0,   // 19:00
-            10 to 19 * 60 + 50, // 19:50
-            11 to 20 * 60 + 40, // 20:40
-            12 to 21 * 60 + 30  // 21:30
-        )
-
-        val nodeEndTimes = mapOf(
-            1 to 8 * 60 + 45,   // 08:45
-            2 to 9 * 60 + 35,   // 09:35
-            3 to 10 * 60 + 55,  // 10:55
-            4 to 11 * 60 + 45,  // 11:45
-            5 to 14 * 60 + 45,  // 14:45
-            6 to 15 * 60 + 35,  // 15:35
-            7 to 16 * 60 + 55,  // 16:55
-            8 to 17 * 60 + 45,  // 17:45
-            9 to 19 * 60 + 45,  // 19:45
-            10 to 20 * 60 + 35, // 20:35
-            11 to 21 * 60 + 25, // 21:25
-            12 to 22 * 60 + 15  // 22:15
-        )
-
-        val startTime = nodeStartTimes[course.startNode] ?: return false
-        val endTime = nodeEndTimes[course.endNode] ?: return false
-
-        return currentTimeMinutes in startTime..endTime
+    private fun refreshStatus() {
+        val currentState = _uiState.value
+        val updatedToday = currentState.todayCourses.map { courseWithStatus ->
+            courseWithStatus.copy(
+                status = CourseStatusCalculator.calculateItemStatus(courseWithStatus.course, currentState.timeSlots),
+                minutesUntilStart = CourseStatusCalculator.calculateMinutesUntilStart(courseWithStatus.course, currentState.timeSlots),
+                minutesUntilEnd = CourseStatusCalculator.calculateMinutesUntilEnd(courseWithStatus.course, currentState.timeSlots)
+            )
+        }
+        _uiState.value = currentState.copy(todayCourses = updatedToday)
     }
 
     private fun getTodayDayOfWeek(): Int {

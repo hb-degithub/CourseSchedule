@@ -4,10 +4,13 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.util.Log
+import com.hbde.courseschedule.data.local.SettingsDataStore
+import com.hbde.courseschedule.data.local.dao.CourseDao
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -21,6 +24,12 @@ class BootReceiver : BroadcastReceiver() {
     @Inject
     lateinit var alarmScheduler: AlarmScheduler
 
+    @Inject
+    lateinit var courseDao: CourseDao
+
+    @Inject
+    lateinit var settingsDataStore: SettingsDataStore
+
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action != Intent.ACTION_BOOT_COMPLETED) return
 
@@ -31,12 +40,13 @@ class BootReceiver : BroadcastReceiver() {
 
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
             try {
-                // TODO: 从数据库读取所有课程，重新设置闹钟
-                // val courses = courseDao.getAllCourses()
-                // alarmScheduler.rescheduleAllReminders(courses)
-
-                // 当前先记录日志，等 DAO 实现后取消注释上面的代码
-                Log.d(TAG, "闹钟重新调度完成（待 DAO 实现后启用）")
+                // 从数据库读取所有课程
+                val courses = courseDao.getAllCourses().first()
+                // 从 SettingsDataStore 读取 reminderMinutes
+                val reminderMinutes = settingsDataStore.reminderMinutes.first()
+                // 调用 AlarmScheduler 重新设置所有提醒
+                alarmScheduler.scheduleCourseReminders(courses, reminderMinutes)
+                Log.d(TAG, "闹钟重新调度完成，共 ${courses.size} 门课程")
             } catch (e: Exception) {
                 Log.e(TAG, "重新设置闹钟失败", e)
             } finally {

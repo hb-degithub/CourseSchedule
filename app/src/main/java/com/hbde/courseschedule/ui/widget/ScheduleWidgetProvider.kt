@@ -6,11 +6,13 @@ import android.appwidget.AppWidgetProvider
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.graphics.Color as AndroidColor
 import android.widget.RemoteViews
 import com.hbde.courseschedule.MainActivity
 import com.hbde.courseschedule.R
 import com.hbde.courseschedule.data.local.AppDatabase
 import com.hbde.courseschedule.data.local.entity.CourseEntity
+import com.hbde.courseschedule.data.local.entity.ThemeConfigEntity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -47,23 +49,31 @@ class ScheduleWidgetProvider : AppWidgetProvider() {
     ) {
         val database = AppDatabase.getInstance(context)
         val courseDao = database.courseDao()
+        val themeConfigDao = database.themeConfigDao()
 
         coroutineScope.launch {
             val todayDayOfWeek = getTodayDayOfWeek()
+
+            // 读取主题配置（同步查询，取第一条）
+            val themeConfig = try {
+                themeConfigDao.getThemeConfigSync()
+            } catch (_: Exception) {
+                null
+            }
 
             // Collect one emission from the Flow
             val courses = try {
                 courseDao.getCoursesByDayOfWeek(todayDayOfWeek)
                     .collect { list ->
                         val sorted = list.sortedBy { it.startNode }
-                        val remoteViews = buildRemoteViews(context, sorted)
+                        val remoteViews = buildRemoteViews(context, sorted, themeConfig)
                         withContext(Dispatchers.Main) {
                             appWidgetManager.updateAppWidget(appWidgetId, remoteViews)
                         }
                     }
             } catch (_: Exception) {
                 // If Flow fails, show empty state
-                val remoteViews = buildRemoteViews(context, emptyList())
+                val remoteViews = buildRemoteViews(context, emptyList(), themeConfig)
                 withContext(Dispatchers.Main) {
                     appWidgetManager.updateAppWidget(appWidgetId, remoteViews)
                 }
@@ -73,9 +83,39 @@ class ScheduleWidgetProvider : AppWidgetProvider() {
 
     private fun buildRemoteViews(
         context: Context,
-        courses: List<CourseEntity>
+        courses: List<CourseEntity>,
+        themeConfig: ThemeConfigEntity?
     ): RemoteViews {
         val remoteViews = RemoteViews(context.packageName, R.layout.widget_schedule)
+
+        // 根据主题配置设置 Widget 背景
+        val widgetBgColor = if (themeConfig != null) {
+            // 如果主题使用图片背景，Widget 保持默认纯色（RemoteViews 不支持复杂图片处理）
+            val bgValue = themeConfig.backgroundImage
+            if (!bgValue.isNullOrBlank() && bgValue.startsWith("#")) {
+                try {
+                    AndroidColor.parseColor(bgValue)
+                } catch (_: Exception) {
+                    AndroidColor.parseColor("#FFF5F5F5")
+                }
+            } else {
+                AndroidColor.parseColor("#FFF5F5F5")
+            }
+        } else {
+            AndroidColor.parseColor("#FFF5F5F5")
+        }
+        remoteViews.setInt(R.id.widget_root, "setBackgroundColor", widgetBgColor)
+
+        // 根据主题配置设置标题颜色
+        val titleColor = themeConfig?.let {
+            val primary = it.primaryColor
+            // 深色主色用白字，浅色用黑字
+            val luminance = (0.299 * AndroidColor.red(primary) +
+                    0.587 * AndroidColor.green(primary) +
+                    0.114 * AndroidColor.blue(primary)) / 255
+            if (luminance > 0.5f) AndroidColor.parseColor("#FF000000")
+            else AndroidColor.parseColor("#FFFFFFFF")
+        } ?: AndroidColor.parseColor("#FF000000")
 
         // Set title with today's date
         val calendar = Calendar.getInstance()
@@ -84,6 +124,7 @@ class ScheduleWidgetProvider : AppWidgetProvider() {
         val weekDayNames = arrayOf("", "周日", "周一", "周二", "周三", "周四", "周五", "周六")
         val weekDay = weekDayNames[calendar.get(Calendar.DAY_OF_WEEK)]
         remoteViews.setTextViewText(R.id.widget_date, "${month}月${day}日 ${weekDay}")
+        remoteViews.setTextColor(R.id.widget_date, titleColor)
 
         // Setup click on root to open app
         val openAppIntent = Intent(context, MainActivity::class.java).apply {
@@ -131,6 +172,19 @@ class ScheduleWidgetProvider : AppWidgetProvider() {
                     R.id.widget_item_classroom,
                     course.classroom ?: ""
                 )
+
+                // 根据主题配置调整文字颜色
+                val itemTextColor = themeConfig?.let {
+                    val primary = it.primaryColor
+                    val luminance = (0.299 * AndroidColor.red(primary) +
+                            0.587 * AndroidColor.green(primary) +
+                            0.114 * AndroidColor.blue(primary)) / 255
+                    if (luminance > 0.5f) AndroidColor.parseColor("#FF000000")
+                    else AndroidColor.parseColor("#FFFFFFFF")
+                } ?: AndroidColor.parseColor("#FF000000")
+                itemViews.setTextColor(R.id.widget_item_name, itemTextColor)
+                itemViews.setTextColor(R.id.widget_item_time, itemTextColor)
+                itemViews.setTextColor(R.id.widget_item_classroom, itemTextColor)
 
                 // Set color bar
                 val color = course.color ?: colorPalette[i % colorPalette.size]

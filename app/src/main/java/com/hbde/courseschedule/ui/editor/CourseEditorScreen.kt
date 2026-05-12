@@ -18,6 +18,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -29,18 +30,21 @@ import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.material3.Slider
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -338,11 +342,14 @@ private fun DropdownSelector(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ColorPicker(
     selectedColor: Int?,
     onColorSelected: (Int) -> Unit
 ) {
+    var showCustomPicker by remember { mutableStateOf(false) }
+
     val colors = listOf(
         0xFFE57373.toInt(), 0xFFF06292.toInt(), 0xFFBA68C8.toInt(), 0xFF9575CD.toInt(),
         0xFF7986CB.toInt(), 0xFF64B5F6.toInt(), 0xFF4FC3F7.toInt(), 0xFF4DD0E1.toInt(),
@@ -350,26 +357,208 @@ private fun ColorPicker(
         0xFFFF8A65.toInt(), 0xFF90A4AE.toInt(), 0xFFB0BEC5.toInt()
     )
 
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    Column {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            colors.forEach { colorInt ->
+                val isSelected = selectedColor == colorInt
+                Box(
+                    modifier = Modifier
+                        .size(32.dp)
+                        .clip(CircleShape)
+                        .background(Color(colorInt))
+                        .border(
+                            width = if (isSelected) 3.dp else 1.dp,
+                            color = if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent,
+                            shape = CircleShape
+                        )
+                        .clickable { onColorSelected(colorInt) }
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // Custom color button
+        TextButton(
+            onClick = { showCustomPicker = true },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("自定义颜色")
+        }
+    }
+
+    if (showCustomPicker) {
+        CustomColorPickerBottomSheet(
+            initialColor = selectedColor ?: 0xFF2196F3.toInt(),
+            onColorSelected = {
+                onColorSelected(it)
+                showCustomPicker = false
+            },
+            onDismiss = { showCustomPicker = false }
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun CustomColorPickerBottomSheet(
+    initialColor: Int,
+    onColorSelected: (Int) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    var red by remember { mutableStateOf(Color(initialColor).red * 255) }
+    var green by remember { mutableStateOf(Color(initialColor).green * 255) }
+    var blue by remember { mutableStateOf(Color(initialColor).blue * 255) }
+
+    val currentColor = Color(
+        red = (red / 255).coerceIn(0f, 1f),
+        green = (green / 255).coerceIn(0f, 1f),
+        blue = (blue / 255).coerceIn(0f, 1f)
+    )
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState
     ) {
-        colors.forEach { colorInt ->
-            val isSelected = selectedColor == colorInt
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Text(
+                text = "自定义颜色",
+                style = MaterialTheme.typography.titleLarge
+            )
+
+            // Color preview
             Box(
                 modifier = Modifier
-                    .size(32.dp)
-                    .clip(CircleShape)
-                    .background(Color(colorInt))
-                    .border(
-                        width = if (isSelected) 3.dp else 1.dp,
-                        color = if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent,
-                        shape = CircleShape
-                    )
-                    .clickable { onColorSelected(colorInt) }
+                    .fillMaxWidth()
+                    .height(80.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(currentColor),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = String.format("#%02X%02X%02X", red.toInt(), green.toInt(), blue.toInt()),
+                    color = if (currentColor.luminance() > 0.5f) Color.Black else Color.White,
+                    style = MaterialTheme.typography.titleMedium
+                )
+            }
+
+            // RGB Sliders
+            ColorSlider(
+                label = "R",
+                value = red,
+                onValueChange = { red = it },
+                color = Color.Red
             )
+            ColorSlider(
+                label = "G",
+                value = green,
+                onValueChange = { green = it },
+                color = Color.Green
+            )
+            ColorSlider(
+                label = "B",
+                value = blue,
+                onValueChange = { blue = it },
+                color = Color.Blue
+            )
+
+            // HEX input
+            var hexInput by remember {
+                mutableStateOf(
+                    String.format("%02X%02X%02X", red.toInt(), green.toInt(), blue.toInt())
+                )
+            }
+            OutlinedTextField(
+                value = hexInput,
+                onValueChange = { input ->
+                    hexInput = input.uppercase().filter { it in '0'..'9' || it in 'A'..'F' }
+                    if (hexInput.length == 6) {
+                        try {
+                            val parsed = hexInput.toInt(16)
+                            red = ((parsed shr 16) and 0xFF).toFloat()
+                            green = ((parsed shr 8) and 0xFF).toFloat()
+                            blue = (parsed and 0xFF).toFloat()
+                        } catch (_: NumberFormatException) {
+                            // ignore invalid hex
+                        }
+                    }
+                },
+                label = { Text("HEX") },
+                prefix = { Text("#") },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true
+            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                TextButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("取消")
+                }
+                Button(
+                    onClick = {
+                        val colorInt = android.graphics.Color.rgb(
+                            red.toInt().coerceIn(0, 255),
+                            green.toInt().coerceIn(0, 255),
+                            blue.toInt().coerceIn(0, 255)
+                        )
+                        onColorSelected(colorInt)
+                    },
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("确定")
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
         }
+    }
+}
+
+@Composable
+private fun ColorSlider(
+    label: String,
+    value: Float,
+    onValueChange: (Float) -> Unit,
+    color: Color
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text(
+            text = label,
+            modifier = Modifier.width(20.dp),
+            color = color,
+            style = MaterialTheme.typography.bodyMedium
+        )
+        Slider(
+            value = value,
+            onValueChange = onValueChange,
+            valueRange = 0f..255f,
+            modifier = Modifier.weight(1f)
+        )
+        Text(
+            text = "${value.toInt()}",
+            modifier = Modifier.width(36.dp),
+            style = MaterialTheme.typography.bodySmall
+        )
     }
 }

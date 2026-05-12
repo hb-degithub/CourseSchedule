@@ -29,6 +29,9 @@ interface CourseDao {
     @Query("SELECT * FROM courses WHERE startWeek <= :week AND endWeek >= :week")
     fun getCoursesByWeek(week: Int): Flow<List<CourseEntity>>
 
+    @Query("SELECT * FROM courses WHERE dayOfWeek = :dayOfWeek AND startWeek <= :week AND endWeek >= :week")
+    fun getCoursesByWeekAndDay(week: Int, dayOfWeek: Int): Flow<List<CourseEntity>>
+
     @Query("SELECT * FROM courses WHERE id = :id")
     fun getCourseById(id: Int): Flow<CourseEntity?>
 }

@@ -25,4 +25,10 @@ interface TimeTableDao {
 
     @Query("SELECT * FROM time_tables WHERE id = :id")
     fun getTimeTableById(id: Int): Flow<TimeTableEntity?>
+
+    @Query("SELECT * FROM time_tables ORDER BY id ASC LIMIT 1")
+    suspend fun getDefaultTimeTable(): TimeTableEntity?
+
+    @Query("SELECT * FROM time_tables WHERE id = :id")
+    suspend fun getTimeTableByIdSync(id: Int): TimeTableEntity?
 }

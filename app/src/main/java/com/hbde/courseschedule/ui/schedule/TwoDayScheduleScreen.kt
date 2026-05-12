@@ -45,6 +45,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.hbde.courseschedule.data.local.entity.CourseEntity
+import com.hbde.courseschedule.data.model.CourseListItemStatus
+import com.hbde.courseschedule.utils.CourseStatusCalculator
 import java.util.Calendar
 
 private val DEFAULT_COURSE_COLORS = listOf(
@@ -157,11 +159,18 @@ private fun CourseListItem(
     onClick: () -> Unit
 ) {
     val course = courseWithStatus.course
-    val isCurrent = courseWithStatus.isCurrent
+    val status = courseWithStatus.status
 
     val colorIndex = course.id % DEFAULT_COURSE_COLORS.size
     val courseColor = course.color?.let { Color(it) }
         ?: Color(DEFAULT_COURSE_COLORS[colorIndex])
+
+    // 根据状态确定卡片背景色
+    val cardBackgroundColor = when (status) {
+        CourseListItemStatus.ONGOING -> courseColor.copy(alpha = 0.12f)
+        CourseListItemStatus.ENDED -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+        CourseListItemStatus.UPCOMING -> MaterialTheme.colorScheme.surface
+    }
 
     Card(
         modifier = Modifier
@@ -170,13 +179,13 @@ private fun CourseListItem(
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
-            containerColor = if (isCurrent)
-                courseColor.copy(alpha = 0.15f)
-            else
-                MaterialTheme.colorScheme.surface
+            containerColor = cardBackgroundColor
         ),
         elevation = CardDefaults.cardElevation(
-            defaultElevation = if (isCurrent) 4.dp else 1.dp
+            defaultElevation = when (status) {
+                CourseListItemStatus.ONGOING -> 4.dp
+                else -> 1.dp
+            }
         )
     ) {
         Row(
@@ -231,15 +240,13 @@ private fun CourseListItem(
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f, fill = false)
                     )
-                    if (isCurrent) {
-                        Spacer(modifier = Modifier.width(8.dp))
-                        CurrentBadge()
-                    }
                 }
 
                 Spacer(modifier = Modifier.height(4.dp))
 
-                Row {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     if (!course.classroom.isNullOrBlank()) {
                         InfoChip(text = course.classroom)
                     }
@@ -249,22 +256,60 @@ private fun CourseListItem(
                     }
                 }
             }
+
+            Spacer(modifier = Modifier.width(8.dp))
+
+            // Status badge
+            StatusBadge(
+                status = status,
+                minutesUntil = when (status) {
+                    CourseListItemStatus.ONGOING -> courseWithStatus.minutesUntilEnd
+                    CourseListItemStatus.UPCOMING -> courseWithStatus.minutesUntilStart
+                    CourseListItemStatus.ENDED -> 0
+                }
+            )
         }
     }
 }
 
 @Composable
-private fun CurrentBadge() {
+private fun StatusBadge(
+    status: CourseListItemStatus,
+    minutesUntil: Int
+) {
+    val (text, backgroundColor, textColor) = when (status) {
+        CourseListItemStatus.ONGOING -> Triple(
+            "进行中",
+            Color(0xFFE8F5E9),
+            Color(0xFF2E7D32)
+        )
+        CourseListItemStatus.ENDED -> Triple(
+            "已结束",
+            Color(0xFFF5F5F5),
+            Color(0xFF757575)
+        )
+        CourseListItemStatus.UPCOMING -> {
+            val timeStr = if (minutesUntil > 0) {
+                CourseStatusCalculator.formatDuration(minutesUntil) + "后"
+            } else ""
+            Triple(
+                timeStr.ifEmpty { "未开始" },
+                Color(0xFFE3F2FD),
+                Color(0xFF1565C0)
+            )
+        }
+    }
+
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(4.dp))
-            .background(MaterialTheme.colorScheme.primary)
-            .padding(horizontal = 6.dp, vertical = 2.dp)
+            .background(backgroundColor)
+            .padding(horizontal = 8.dp, vertical = 4.dp)
     ) {
         Text(
-            text = "进行中",
-            fontSize = 10.sp,
-            color = MaterialTheme.colorScheme.onPrimary,
+            text = text,
+            fontSize = 11.sp,
+            color = textColor,
             fontWeight = FontWeight.Bold
         )
     }

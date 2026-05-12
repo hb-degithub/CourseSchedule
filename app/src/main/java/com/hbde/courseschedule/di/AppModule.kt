@@ -5,10 +5,14 @@ import com.hbde.courseschedule.data.local.AppDatabase
 import com.hbde.courseschedule.data.local.SettingsDataStore
 import com.hbde.courseschedule.data.local.dao.CourseDao
 import com.hbde.courseschedule.data.local.dao.EventDao
+import com.hbde.courseschedule.data.local.dao.ThemeConfigDao
+import com.hbde.courseschedule.data.local.dao.TimeTableDao
 import com.hbde.courseschedule.data.repository.CourseRepository
 import com.hbde.courseschedule.data.repository.CourseRepositoryImpl
 import com.hbde.courseschedule.data.repository.EventRepository
 import com.hbde.courseschedule.data.repository.EventRepositoryImpl
+import com.hbde.courseschedule.data.repository.ThemeConfigRepository
+import com.hbde.courseschedule.data.repository.ThemeConfigRepositoryImpl
 import com.hbde.courseschedule.importer.parser.ParserRegistry
 import dagger.Module
 import dagger.Provides
@@ -39,6 +43,9 @@ object AppModule {
     fun provideTimeTableDao(database: AppDatabase): TimeTableDao = database.timeTableDao()
 
     @Provides
+    fun provideThemeConfigDao(database: AppDatabase): ThemeConfigDao = database.themeConfigDao()
+
+    @Provides
     @Singleton
     fun provideCourseRepository(courseDao: CourseDao): CourseRepository {
         return CourseRepositoryImpl(courseDao)
@@ -48,6 +55,12 @@ object AppModule {
     @Singleton
     fun provideEventRepository(eventDao: EventDao): EventRepository {
         return EventRepositoryImpl(eventDao)
+    }
+
+    @Provides
+    @Singleton
+    fun provideThemeConfigRepository(themeConfigDao: ThemeConfigDao): ThemeConfigRepository {
+        return ThemeConfigRepositoryImpl(themeConfigDao)
     }
 
     @Provides

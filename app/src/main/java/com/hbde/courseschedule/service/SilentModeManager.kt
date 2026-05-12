@@ -8,6 +8,7 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.hbde.courseschedule.data.local.SettingsDataStore
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -19,6 +20,7 @@ private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(na
 @Singleton
 class SilentModeManager @Inject constructor(
     @ApplicationContext private val context: Context,
+    private val settingsDataStore: SettingsDataStore,
 ) {
 
     companion object {
@@ -30,16 +32,14 @@ class SilentModeManager @Inject constructor(
     }
 
     /**
-     * 启用静音模式（振动模式）
-     * 保存原始铃声模式到 DataStore
+     * 进入静音/振动模式
+     * @param mode AudioManager.RINGER_MODE_SILENT 或 RINGER_MODE_VIBRATE
      */
-    suspend fun enableSilentMode() {
+    suspend fun enterSilentMode(mode: Int) {
         val currentMode = audioManager.ringerMode
 
-        // 如果当前已经是振动或静音，不需要重复操作
-        if (currentMode == AudioManager.RINGER_MODE_VIBRATE ||
-            currentMode == AudioManager.RINGER_MODE_SILENT
-        ) {
+        // 如果当前已经是目标模式，不需要重复操作
+        if (currentMode == mode) {
             return
         }
 
@@ -48,14 +48,14 @@ class SilentModeManager @Inject constructor(
             preferences[KEY_ORIGINAL_RINGER_MODE] = currentMode
         }
 
-        // 设置为振动模式（比完全静音更安全，不会错过紧急来电）
-        audioManager.ringerMode = AudioManager.RINGER_MODE_VIBRATE
+        // 切换为目标模式
+        audioManager.ringerMode = mode
     }
 
     /**
-     * 禁用静音模式，恢复之前的铃声模式
+     * 恢复之前的铃声模式
      */
-    suspend fun disableSilentMode() {
+    suspend fun restoreRingerMode() {
         val originalMode = context.dataStore.data
             .map { preferences ->
                 preferences[KEY_ORIGINAL_RINGER_MODE]
@@ -82,5 +82,12 @@ class SilentModeManager @Inject constructor(
     fun isSilentOrVibrate(): Boolean {
         return audioManager.ringerMode == AudioManager.RINGER_MODE_SILENT ||
                 audioManager.ringerMode == AudioManager.RINGER_MODE_VIBRATE
+    }
+
+    /**
+     * 从 SettingsDataStore 读取自动静音开关
+     */
+    suspend fun isSilentModeEnabled(): Boolean {
+        return settingsDataStore.autoSilentEnabled.first()
     }
 }

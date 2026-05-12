@@ -8,6 +8,7 @@ import androidx.room.TypeConverters
 import com.hbde.courseschedule.data.local.converter.TimeSlotConverter
 import com.hbde.courseschedule.data.local.dao.CourseDao
 import com.hbde.courseschedule.data.local.dao.EventDao
+import com.hbde.courseschedule.data.local.dao.ThemeConfigDao
 import com.hbde.courseschedule.data.local.dao.TimeTableDao
 import com.hbde.courseschedule.data.local.entity.CourseEntity
 import com.hbde.courseschedule.data.local.entity.EventEntity
@@ -31,6 +32,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun courseDao(): CourseDao
     abstract fun eventDao(): EventDao
     abstract fun timeTableDao(): TimeTableDao
+    abstract fun themeConfigDao(): ThemeConfigDao
 
     companion object {
         @Volatile

@@ -4,7 +4,9 @@ import android.content.Context
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
 import android.util.Log
+import com.hbde.courseschedule.data.local.SettingsDataStore
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.flow.first
 import java.util.Locale
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -12,6 +14,7 @@ import javax.inject.Singleton
 @Singleton
 class TtsManager @Inject constructor(
     @ApplicationContext private val context: Context,
+    private val settingsDataStore: SettingsDataStore,
 ) {
 
     companion object {
@@ -78,6 +81,34 @@ class TtsManager @Inject constructor(
             return
         }
         speakInternal(message, params)
+    }
+
+    /**
+     * 播报课程提醒
+     * @param courseName 课程名称
+     * @param classroom 教室
+     * @param minutes 提前分钟数
+     */
+    suspend fun speakCourseReminder(courseName: String, classroom: String, minutes: Int) {
+        val speed = settingsDataStore.ttsSpeed.first()
+        val volume = settingsDataStore.ttsVolume.first()
+
+        textToSpeech?.setSpeechRate(speed)
+
+        val message = buildString {
+            append("距离${courseName}还有${minutes}分钟")
+            if (classroom.isNotBlank()) {
+                append("，教室在${classroom}")
+            }
+            append("，请不要忘记带课本")
+        }
+
+        val params = HashMap<String, String>()
+        params[TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID] = UTTERANCE_ID
+        // 音量参数（0.0 - 1.0）
+        params[TextToSpeech.Engine.KEY_PARAM_VOLUME] = volume.toString()
+
+        speak(message, params)
     }
 
     private fun speakInternal(message: String, params: HashMap<String, String>? = null) {

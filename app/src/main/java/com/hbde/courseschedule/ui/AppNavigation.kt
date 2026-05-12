@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Event
+import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
@@ -23,7 +24,11 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.hbde.courseschedule.ui.campus.CampusScreen
+import com.hbde.courseschedule.ui.campus.classroom.ClassroomScreen
+import com.hbde.courseschedule.ui.campus.grade.GradeScreen
 import com.hbde.courseschedule.ui.editor.CourseEditorScreen
+import com.hbde.courseschedule.ui.importer.ImportPreviewScreen
 import com.hbde.courseschedule.ui.event.EventEditorScreen
 import com.hbde.courseschedule.ui.event.EventListScreen
 import com.hbde.courseschedule.ui.schedule.ScheduleScreen
@@ -33,18 +38,23 @@ import com.hbde.courseschedule.ui.settings.SettingsScreen
 sealed class Screen(val route: String, val label: String, val icon: ImageVector) {
     data object Schedule : Screen("schedule_screen", "课表", Icons.Filled.CalendarMonth)
     data object Event : Screen("event_screen", "日程", Icons.Filled.Event)
+    data object Campus : Screen("campus_screen", "校园", Icons.Filled.School)
     data object Settings : Screen("settings_screen", "设置", Icons.Filled.Settings)
 }
 
-val bottomNavItems = listOf(Screen.Schedule, Screen.Event, Screen.Settings)
+val bottomNavItems = listOf(Screen.Schedule, Screen.Event, Screen.Campus, Screen.Settings)
 
 object Routes {
     const val SCHEDULE = "schedule_screen"
     const val TWO_DAY_SCHEDULE = "two_day_schedule_screen"
     const val EVENT = "event_screen"
+    const val CAMPUS = "campus_screen"
+    const val GRADE = "grade_screen"
+    const val CLASSROOM = "classroom_screen"
     const val SETTINGS = "settings_screen"
     const val COURSE_EDITOR = "course_editor_screen"
     const val EVENT_EDITOR = "event_editor_screen"
+    const val IMPORT_PREVIEW = "import_preview_screen"
 }
 
 @Composable
@@ -94,6 +104,22 @@ fun AppNavigation() {
                     onNavigateToEditor = { navController.navigate(Routes.EVENT_EDITOR) }
                 )
             }
+            composable(Routes.CAMPUS) {
+                CampusScreen(
+                    onNavigateToGrade = { navController.navigate(Routes.GRADE) },
+                    onNavigateToClassroom = { navController.navigate(Routes.CLASSROOM) }
+                )
+            }
+            composable(Routes.GRADE) {
+                GradeScreen(
+                    onNavigateBack = { navController.popBackStack() }
+                )
+            }
+            composable(Routes.CLASSROOM) {
+                ClassroomScreen(
+                    onNavigateBack = { navController.popBackStack() }
+                )
+            }
             composable(Routes.SETTINGS) {
                 SettingsScreen()
             }
@@ -126,6 +152,19 @@ fun AppNavigation() {
             }
             composable(Routes.EVENT_EDITOR) {
                 EventEditorScreen(
+                    onNavigateBack = { navController.popBackStack() }
+                )
+            }
+            composable(
+                route = Routes.IMPORT_PREVIEW + "?courses_json={courses_json}",
+                arguments = listOf(
+                    navArgument("courses_json") {
+                        type = NavType.StringType
+                        defaultValue = ""
+                    }
+                )
+            ) {
+                ImportPreviewScreen(
                     onNavigateBack = { navController.popBackStack() }
                 )
             }
