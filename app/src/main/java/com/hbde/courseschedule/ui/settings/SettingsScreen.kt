@@ -26,7 +26,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.automirrored.filled.Input
-import androidx.compose.material.icons.automirrored.filled.Output
+import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.filled.ColorLens
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Palette
@@ -208,7 +208,7 @@ fun SettingsScreen(
             SettingsActionItem(
                 title = "导出课表",
                 subtitle = "导出为文件",
-                icon = Icons.AutoMirrored.Filled.Output,
+                icon = Icons.AutoMirrored.Filled.ExitToApp,
                 onClick = viewModel::exportSchedule
             )
 

@@ -1,5 +1,6 @@
 package com.hbde.courseschedule.ui.schedule.components
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -70,23 +71,12 @@ fun CourseBlock(
                 )
                 .clip(RoundedCornerShape(cornerRadius))
         ) {
-            // 背景色填充
-            Box(
+            Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .clip(RoundedCornerShape(cornerRadius))
-                    .then(
-                        if (overlapCount > 1) {
-                            Modifier.fillMaxWidth(fraction)
-                        } else Modifier
-                    )
+                    .background(baseColor)
+                    .padding(horizontal = 2.dp, vertical = 2.dp)
             ) {
-                androidx.compose.foundation.background(baseColor)
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(horizontal = 2.dp, vertical = 2.dp)
-                ) {
                     Text(
                         text = course.name,
                         color = textColor,
@@ -110,7 +100,6 @@ fun CourseBlock(
             }
         }
     }
-}
 
 /**
  * 计算文字颜色：深色背景用白字，浅色背景用黑字

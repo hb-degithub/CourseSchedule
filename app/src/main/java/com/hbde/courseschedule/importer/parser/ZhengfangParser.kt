@@ -141,7 +141,7 @@ class ZhengfangParser : CourseParser {
             when {
                 line.contains("教室") || line.contains("楼") || line.contains("馆") ||
                     line.matches(Regex(".*[A-Za-z]\\d+.*")) ||
-                    line.matches(Regex("^\\d+[#-]\\d+") -> {
+                    line.matches(Regex("^\\d+[#-]\\d+")) -> {
                     classroom = line
                 }
                 line.contains("老师") || line.contains("教授") || line.contains("讲师") ||

@@ -49,23 +49,27 @@ class ClassroomViewModel @Inject constructor() : ViewModel() {
             _startNode,
             _endNode,
             _favoriteClassrooms
-        ) { classrooms, building, _, start, end, favorites ->
+        ) { values ->
+            @Suppress("UNCHECKED_CAST")
+            val classrooms = values[0] as List<Classroom>
+            val building = values[1] as String
+            val start = values[3] as Int
+            val end = values[4] as Int
+            val favorites = values[5] as Set<String>
+
             val buildings = listOf("全部教学楼") + classrooms.map { it.building }.distinct().sorted()
 
-            // 筛选教室
-            val filtered = classrooms.filter { classroom ->
-                building == "全部教学楼" || classroom.building == building
-            }.map { classroom ->
-                // 模拟占用状态（后续对接教务系统）
-                val isOccupied = isClassroomOccupied(classroom.id, start, end)
+            val filtered = classrooms.filter { c ->
+                building == "全部教学楼" || c.building == building
+            }.map { c ->
+                val isOccupied = isClassroomOccupied(c.id, start, end)
                 ClassroomStatus(
-                    classroom = classroom,
+                    classroom = c,
                     isOccupied = isOccupied,
                     occupiedNodes = if (isOccupied) (start..end).toList() else emptyList()
                 )
-            }.filter { !it.isOccupied } // 只显示空教室
+            }.filter { !it.isOccupied }
 
-            // 收藏项置顶
             val sorted = filtered.sortedWith(
                 compareByDescending<ClassroomStatus> { favorites.contains(it.classroom.id) }
                     .thenBy { it.classroom.building }
@@ -163,11 +167,11 @@ class ClassroomViewModel @Inject constructor() : ViewModel() {
         _uiState.update { it.copy(showBuildingMenu = false) }
     }
 
-    companion object {
-        private fun getCurrentDayOfWeek(): Int {
-            val calendar = java.util.Calendar.getInstance()
-            val day = calendar.get(java.util.Calendar.DAY_OF_WEEK)
-            return if (day == java.util.Calendar.SUNDAY) 7 else day - 1
-        }
-    }
+    companion object
+}
+
+private fun getCurrentDayOfWeek(): Int {
+    val calendar = java.util.Calendar.getInstance()
+    val day = calendar.get(java.util.Calendar.DAY_OF_WEEK)
+    return if (day == java.util.Calendar.SUNDAY) 7 else day - 1
 }

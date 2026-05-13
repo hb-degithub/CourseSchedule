@@ -15,6 +15,7 @@ import com.hbde.courseschedule.data.local.entity.EventEntity
 import com.hbde.courseschedule.data.local.entity.ScheduleEntity
 import com.hbde.courseschedule.data.local.entity.ThemeConfigEntity
 import com.hbde.courseschedule.data.local.entity.TimeTableEntity
+import kotlinx.coroutines.launch
 
 @Database(
     entities = [

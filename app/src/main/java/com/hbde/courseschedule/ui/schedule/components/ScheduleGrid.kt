@@ -4,6 +4,7 @@ import android.net.Uri
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.InfiniteRepeatableSpec
 import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
@@ -71,6 +72,16 @@ private val NODE_END_TIMES = listOf(
     LocalTime.of(14, 45), LocalTime.of(15, 40), LocalTime.of(16, 45), LocalTime.of(17, 40),
     LocalTime.of(19, 45), LocalTime.of(20, 40), LocalTime.of(21, 35), LocalTime.of(22, 30)
 )
+
+@Composable
+private fun parseBackgroundColor(backgroundValue: String?): Color {
+    val parsed = try {
+        backgroundValue?.let { Color(android.graphics.Color.parseColor(it)) }
+    } catch (_: Exception) {
+        null
+    }
+    return parsed ?: MaterialTheme.colorScheme.background
+}
 
 /**
  * 课表网格主组件
@@ -176,12 +187,7 @@ private fun ScheduleBackground(
             )
         }
         else -> {
-            val bgColor = try {
-                backgroundValue?.let { Color(android.graphics.Color.parseColor(it)) }
-                    ?: MaterialTheme.colorScheme.background
-            } catch (_: Exception) {
-                MaterialTheme.colorScheme.background
-            }
+            val bgColor = parseBackgroundColor(backgroundValue)
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -463,7 +469,7 @@ private fun CourseBlockItem(
                                 drawContent()
                                 // 绘制外发光效果
                                 drawRect(
-                                    color = Color(0xFF4CAF50).copy(alpha = 0.15f * pulseAlpha),
+                                    color = Color(0xFF4CAF50).copy(alpha = (0.15f * pulseAlpha).coerceIn(0f, 1f)),
                                     size = size
                                 )
                             }

@@ -81,11 +81,7 @@ class DailyOverviewWorker @AssistedInject constructor(
             }
 
             // 发送「明日概览」通知
-            notificationHelper.showDailyOverviewNotification(
-                title = "明日课程概览",
-                content = content.toString(),
-                courseCount = tomorrowCourses.size,
-            )
+            notificationHelper.showDailyOverviewNotification(tomorrowCourses)
 
             Result.success()
         } catch (e: Exception) {
