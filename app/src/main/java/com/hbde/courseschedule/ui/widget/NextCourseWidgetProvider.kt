@@ -10,6 +10,7 @@ import android.widget.RemoteViews
 import com.hbde.courseschedule.MainActivity
 import com.hbde.courseschedule.R
 import com.hbde.courseschedule.data.local.AppDatabase
+import com.hbde.courseschedule.ui.schedule.ScheduleViewModel
 import com.hbde.courseschedule.data.local.entity.CourseEntity
 import com.hbde.courseschedule.data.local.entity.TimeSlot
 import com.hbde.courseschedule.data.local.entity.toTimeSlotList

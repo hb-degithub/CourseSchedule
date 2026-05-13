@@ -80,6 +80,30 @@
                 android:resource="@xml/schedule_widget_info" />
         </receiver>
 
+        <!-- Next Course Widget (2x2) -->
+        <receiver
+            android:name=".ui.widget.NextCourseWidgetProvider"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/next_course_widget_info" />
+        </receiver>
+
+        <!-- Week Widget (4x4) -->
+        <receiver
+            android:name=".ui.widget.WeekWidgetProvider"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/week_widget_info" />
+        </receiver>
+
         <!-- LiveActivityService：用于保活悬浮窗实时活动 -->
         <service
             android:name=".service.liveactivity.LiveActivityService"
