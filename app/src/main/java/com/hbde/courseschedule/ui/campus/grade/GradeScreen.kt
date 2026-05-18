@@ -19,6 +19,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.School
 import androidx.compose.material3.Card
@@ -26,6 +27,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -45,9 +47,10 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.hbde.courseschedule.data.model.GpaAlgorithm
-import com.hbde.courseschedule.data.model.GpaCalculator
-import com.hbde.courseschedule.data.model.GpaResult
+import com.hbde.courseschedule.utils.GpaAlgorithm
+import com.hbde.courseschedule.utils.GpaCalculator
+import com.hbde.courseschedule.utils.GpaResult
+import com.hbde.courseschedule.utils.SemesterGpa
 import com.hbde.courseschedule.data.model.Grade
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -76,6 +79,14 @@ fun GradeScreen(
                     navigationIconContentColor = MaterialTheme.colorScheme.onPrimary
                 )
             )
+        },
+        floatingActionButton = {
+            FloatingActionButton(
+                onClick = { /* TODO: 添加成绩 */ },
+                containerColor = MaterialTheme.colorScheme.primary
+            ) {
+                Icon(Icons.Filled.Add, contentDescription = "添加成绩")
+            }
         }
     ) { innerPadding ->
         Column(
@@ -100,18 +111,40 @@ fun GradeScreen(
             if (uiState.grades.isEmpty()) {
                 EmptyGradeState(onImportClick = { /* TODO: 导入成绩 */ })
             } else {
-                // 统计卡片
-                GpaStatsCard(
-                    gpaResult = uiState.gpaResult,
-                    algorithmName = GpaCalculator.getAlgorithmName(uiState.selectedAlgorithm),
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-                )
-
-                // 成绩列表
                 LazyColumn(
                     modifier = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
+                    // 统计卡片
+                    item {
+                        GpaStatsCard(
+                            gpaResult = uiState.gpaResult,
+                            algorithmName = GpaCalculator.getAlgorithmName(uiState.selectedAlgorithm),
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                        )
+                    }
+
+                    // 算法说明
+                    if (uiState.showAlgorithmDescription) {
+                        item {
+                            AlgorithmDescriptionCard(
+                                algorithm = uiState.selectedAlgorithm,
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                            )
+                        }
+                    }
+
+                    // 学期绩点趋势
+                    if (uiState.semesterGpaTrend.size > 1) {
+                        item {
+                            SemesterTrendCard(
+                                trend = uiState.semesterGpaTrend,
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                            )
+                        }
+                    }
+
+                    // 成绩列表
                     items(uiState.grades, key = { it.id }) { grade ->
                         GradeListItem(
                             grade = grade,
@@ -235,11 +268,25 @@ private fun GpaStatsCard(
                 .fillMaxWidth()
                 .padding(20.dp)
         ) {
-            Text(
-                text = "GPA 统计 ($algorithmName)",
-                fontSize = 14.sp,
-                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "GPA 统计 ($algorithmName)",
+                    fontSize = 14.sp,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+                )
+                Icon(
+                    imageVector = Icons.Filled.Info,
+                    contentDescription = "算法说明",
+                    modifier = Modifier
+                        .size(18.dp)
+                        .clickable { /* TODO: 显示算法说明 */ },
+                    tint = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.5f)
+                )
+            }
 
             Spacer(modifier = Modifier.height(8.dp))
 
@@ -261,6 +308,103 @@ private fun GpaStatsCard(
                     value = gpaResult.totalCourses.toString(),
                     label = "已修课程"
                 )
+            }
+        }
+    }
+}
+
+@Composable
+private fun AlgorithmDescriptionCard(
+    algorithm: GpaAlgorithm,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.secondaryContainer
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+        ) {
+            Text(
+                text = "${GpaCalculator.getAlgorithmName(algorithm)} 算法说明",
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.onSecondaryContainer
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = GpaCalculator.getAlgorithmDescription(algorithm),
+                fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.7f)
+            )
+        }
+    }
+}
+
+@Composable
+private fun SemesterTrendCard(
+    trend: List<SemesterGpa>,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+        ) {
+            Text(
+                text = "学期绩点趋势",
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // 简单的趋势展示
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                trend.forEach { semesterGpa ->
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = String.format("%.2f", semesterGpa.gpa),
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = when {
+                                semesterGpa.gpa >= 3.5 -> Color(0xFF4CAF50)
+                                semesterGpa.gpa >= 3.0 -> Color(0xFF2196F3)
+                                semesterGpa.gpa >= 2.0 -> Color(0xFFFF9800)
+                                else -> Color(0xFFF44336)
+                            }
+                        )
+                        Text(
+                            text = semesterGpa.semester,
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                        )
+                        Text(
+                            text = "${semesterGpa.courseCount}门/${semesterGpa.totalCredits}学分",
+                            fontSize = 10.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                        )
+                    }
+                }
             }
         }
     }

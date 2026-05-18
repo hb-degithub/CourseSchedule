@@ -12,6 +12,7 @@ import androidx.datastore.preferences.preferencesDataStore
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import java.time.LocalDate
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -28,7 +29,9 @@ class SettingsDataStore @Inject constructor(
         val REMINDER_MINUTES = intPreferencesKey("reminder_minutes")
         val TTS_ENABLED = booleanPreferencesKey("tts_enabled")
         val AUTO_SILENT_ENABLED = booleanPreferencesKey("auto_silent_enabled")
+        val SILENT_MODE_TYPE = stringPreferencesKey("silent_mode_type") // "vibrate" or "silent"
         val DAILY_OVERVIEW_HOUR = intPreferencesKey("daily_overview_hour")
+        val TERM_START_DATE = stringPreferencesKey("term_start_date")
 
         // TTS settings
         val TTS_SPEED = floatPreferencesKey("tts_speed")
@@ -65,9 +68,21 @@ class SettingsDataStore @Inject constructor(
             preferences[AUTO_SILENT_ENABLED] ?: false
         }
 
+    val silentModeType: Flow<String> = dataStore.data
+        .map { preferences ->
+            preferences[SILENT_MODE_TYPE] ?: "vibrate"
+        }
+
     val dailyOverviewHour: Flow<Int> = dataStore.data
         .map { preferences ->
             preferences[DAILY_OVERVIEW_HOUR] ?: 8
+        }
+
+    val termStartDate: Flow<LocalDate?> = dataStore.data
+        .map { preferences ->
+            preferences[TERM_START_DATE]?.let { value ->
+                runCatching { LocalDate.parse(value) }.getOrNull()
+            }
         }
 
     // TTS settings flows
@@ -135,9 +150,25 @@ class SettingsDataStore @Inject constructor(
         }
     }
 
+    suspend fun setSilentModeType(type: String) {
+        dataStore.edit { preferences ->
+            preferences[SILENT_MODE_TYPE] = type
+        }
+    }
+
     suspend fun setDailyOverviewHour(hour: Int) {
         dataStore.edit { preferences ->
             preferences[DAILY_OVERVIEW_HOUR] = hour
+        }
+    }
+
+    suspend fun setTermStartDate(date: LocalDate?) {
+        dataStore.edit { preferences ->
+            if (date == null) {
+                preferences.remove(TERM_START_DATE)
+            } else {
+                preferences[TERM_START_DATE] = date.toString()
+            }
         }
     }
 

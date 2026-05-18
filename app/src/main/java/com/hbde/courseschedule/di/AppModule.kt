@@ -5,12 +5,15 @@ import com.hbde.courseschedule.data.local.AppDatabase
 import com.hbde.courseschedule.data.local.SettingsDataStore
 import com.hbde.courseschedule.data.local.dao.CourseDao
 import com.hbde.courseschedule.data.local.dao.EventDao
+import com.hbde.courseschedule.data.local.dao.GradeDao
 import com.hbde.courseschedule.data.local.dao.ThemeConfigDao
 import com.hbde.courseschedule.data.local.dao.TimeTableDao
 import com.hbde.courseschedule.data.repository.CourseRepository
 import com.hbde.courseschedule.data.repository.CourseRepositoryImpl
 import com.hbde.courseschedule.data.repository.EventRepository
 import com.hbde.courseschedule.data.repository.EventRepositoryImpl
+import com.hbde.courseschedule.data.repository.GradeRepository
+import com.hbde.courseschedule.data.repository.GradeRepositoryImpl
 import com.hbde.courseschedule.data.repository.ThemeConfigRepository
 import com.hbde.courseschedule.data.repository.ThemeConfigRepositoryImpl
 import com.hbde.courseschedule.importer.parser.ParserRegistry
@@ -46,9 +49,15 @@ object AppModule {
     fun provideThemeConfigDao(database: AppDatabase): ThemeConfigDao = database.themeConfigDao()
 
     @Provides
+    fun provideGradeDao(database: AppDatabase): GradeDao = database.gradeDao()
+
+    @Provides
     @Singleton
-    fun provideCourseRepository(courseDao: CourseDao): CourseRepository {
-        return CourseRepositoryImpl(courseDao)
+    fun provideCourseRepository(
+        courseDao: CourseDao,
+        @ApplicationContext context: Context
+    ): CourseRepository {
+        return CourseRepositoryImpl(courseDao, context)
     }
 
     @Provides
@@ -61,6 +70,12 @@ object AppModule {
     @Singleton
     fun provideThemeConfigRepository(themeConfigDao: ThemeConfigDao): ThemeConfigRepository {
         return ThemeConfigRepositoryImpl(themeConfigDao)
+    }
+
+    @Provides
+    @Singleton
+    fun provideGradeRepository(gradeDao: GradeDao): GradeRepository {
+        return GradeRepositoryImpl(gradeDao)
     }
 
     @Provides
@@ -85,5 +100,20 @@ object AppModule {
     @Singleton
     fun provideNotificationHelper(@ApplicationContext context: Context): com.hbde.courseschedule.service.notification.NotificationHelper {
         return com.hbde.courseschedule.service.notification.NotificationHelper(context)
+    }
+
+    @Provides
+    @Singleton
+    fun provideAudioModeManager(
+        @ApplicationContext context: Context,
+        settingsDataStore: SettingsDataStore
+    ): com.hbde.courseschedule.service.audio.AudioModeManager {
+        return com.hbde.courseschedule.service.audio.AudioModeManager(context, settingsDataStore)
+    }
+
+    @Provides
+    @Singleton
+    fun provideCourseCountdownManager(): com.hbde.courseschedule.service.countdown.CourseCountdownManager {
+        return com.hbde.courseschedule.service.countdown.CourseCountdownManager()
     }
 }

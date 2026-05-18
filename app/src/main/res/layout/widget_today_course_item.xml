@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_today_item_container"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:paddingVertical="6dp"
+    android:gravity="center_vertical">
+
+    <View
+        android:id="@+id/widget_today_item_color_bar"
+        android:layout_width="3dp"
+        android:layout_height="match_parent"
+        android:layout_marginEnd="8dp"
+        android:background="#FF03DAC5" />
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/widget_today_item_name"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="课程名"
+            android:textColor="@color/white"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:maxLines="1"
+            android:ellipsize="end" />
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginTop="2dp">
+
+            <TextView
+                android:id="@+id/widget_today_item_time"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="第1-2节"
+                android:textColor="#B3FFFFFF"
+                android:textSize="12sp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text=" · "
+                android:textColor="#80FFFFFF"
+                android:textSize="12sp" />
+
+            <TextView
+                android:id="@+id/widget_today_item_classroom"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="教室"
+                android:textColor="#B3FFFFFF"
+                android:textSize="12sp"
+                android:maxLines="1"
+                android:ellipsize="end" />
+        </LinearLayout>
+    </LinearLayout>
+
+</LinearLayout>

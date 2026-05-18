@@ -2,20 +2,22 @@ package com.hbde.courseschedule.ui.schedule
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.hbde.courseschedule.data.local.SettingsDataStore
 import com.hbde.courseschedule.data.local.dao.TimeTableDao
 import com.hbde.courseschedule.data.local.entity.CourseEntity
 import com.hbde.courseschedule.data.local.entity.TimeSlot
+import com.hbde.courseschedule.data.local.entity.isVisibleInWeek
 import com.hbde.courseschedule.data.local.entity.toTimeSlotList
 import com.hbde.courseschedule.data.model.CourseStatus
 import com.hbde.courseschedule.data.repository.CourseRepository
 import com.hbde.courseschedule.utils.CourseStatusCalculator
+import com.hbde.courseschedule.utils.TermWeekCalculator
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
@@ -38,10 +40,11 @@ data class ScheduleUiState(
 @HiltViewModel
 class ScheduleViewModel @Inject constructor(
     private val courseRepository: CourseRepository,
-    private val timeTableDao: TimeTableDao
+    private val timeTableDao: TimeTableDao,
+    private val settingsDataStore: SettingsDataStore,
 ) : ViewModel() {
 
-    private val _currentWeek = MutableStateFlow(calculateCurrentWeek())
+    private val _currentWeek = MutableStateFlow(TermWeekCalculator.calculateCurrentWeek(null))
     private val _allCourses = MutableStateFlow<List<CourseEntity>>(emptyList())
     private val _timeSlots = MutableStateFlow<List<TimeSlot>>(CourseStatusCalculator.DEFAULT_TIME_SLOTS)
 
@@ -72,8 +75,20 @@ class ScheduleViewModel @Inject constructor(
         // 从 Repository 加载课程
         loadCourses()
 
+        // 从设置读取开学日期，并计算当前周
+        observeTermStartDate()
+
         // 启动定时刷新（每分钟）
         startPeriodicRefresh()
+    }
+
+    private fun observeTermStartDate() {
+        settingsDataStore.termStartDate
+            .onEach { termStartDate ->
+                _currentWeek.value = TermWeekCalculator.calculateCurrentWeek(termStartDate)
+                refreshStatus()
+            }
+            .launchIn(viewModelScope)
     }
 
     private fun loadDefaultTimeTable() {
@@ -142,8 +157,11 @@ class ScheduleViewModel @Inject constructor(
     }
 
     fun currentWeek() {
-        _currentWeek.value = calculateCurrentWeek()
-        refreshStatus()
+        viewModelScope.launch {
+            val termStartDate = settingsDataStore.termStartDate.first()
+            _currentWeek.value = TermWeekCalculator.calculateCurrentWeek(termStartDate)
+            refreshStatus()
+        }
     }
 
     fun setCurrentWeek(week: Int) {
@@ -154,24 +172,10 @@ class ScheduleViewModel @Inject constructor(
     companion object {
         /**
          * 计算当前是第几周（基于学期开始日期）
-         * TODO: 从 SettingsDataStore 读取学期开始日期
          */
+        @Deprecated("Use TermWeekCalculator with SettingsDataStore.termStartDate instead.")
         fun calculateCurrentWeek(): Int {
-            // 默认假设学期开始日期为当前日期所在周周一，则当前周为第 1 周
-            // 后续应从设置中读取学期开始日期
-            return 1
+            return TermWeekCalculator.calculateCurrentWeek(null)
         }
-    }
-}
-
-/**
- * 判断课程在某周是否可见（周范围 + 单双周判断）
- */
-fun CourseEntity.isVisibleInWeek(week: Int): Boolean {
-    if (week < startWeek || week > endWeek) return false
-    return when (weekType.uppercase()) {
-        "ODD" -> week % 2 == 1
-        "EVEN" -> week % 2 == 0
-        else -> true
     }
 }

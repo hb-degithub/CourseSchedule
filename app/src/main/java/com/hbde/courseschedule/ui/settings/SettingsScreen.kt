@@ -1,6 +1,7 @@
 package com.hbde.courseschedule.ui.settings
 
 import android.net.Uri
+import android.app.DatePickerDialog
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -27,15 +28,19 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.automirrored.filled.Input
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
+import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.ColorLens
 import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material.icons.filled.VolumeOff
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
@@ -58,6 +63,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.hbde.courseschedule.data.local.entity.ThemeConfigEntity
+import com.hbde.courseschedule.utils.TermWeekCalculator
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -68,8 +76,8 @@ fun SettingsScreen(
     val ttsEnabled by viewModel.ttsEnabled.collectAsState()
     val autoSilentEnabled by viewModel.autoSilentEnabled.collectAsState()
     val calendarSyncEnabled by viewModel.calendarSyncEnabled.collectAsState()
+    val termStartDate by viewModel.termStartDate.collectAsState()
 
-    // Appearance states
     val backgroundType by viewModel.backgroundType.collectAsState()
     val backgroundColor by viewModel.backgroundColor.collectAsState()
     val backgroundImageUri by viewModel.backgroundImageUri.collectAsState()
@@ -80,8 +88,6 @@ fun SettingsScreen(
     val themeConfig by viewModel.themeConfig.collectAsState()
     val presetThemes = viewModel.presetThemes
 
-    // Image picker launcher
-    // TODO: Add READ_MEDIA_IMAGES or READ_EXTERNAL_STORAGE permission check before launching
     val imagePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
@@ -103,384 +109,430 @@ fun SettingsScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .verticalScroll(rememberScrollState())
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Voice broadcast switch
-            SettingsSwitchItem(
-                title = "语音播报",
-                subtitle = "课前自动语音提醒",
-                checked = ttsEnabled,
-                onCheckedChange = viewModel::onTtsEnabledChange
-            )
+            Spacer(modifier = Modifier.height(8.dp))
 
-            HorizontalDivider()
+            // ===== 提醒设置 =====
+            SettingsSection(title = "提醒设置") {
+                SettingsSwitchItem(
+                    title = "语音播报",
+                    subtitle = "课前自动语音提醒",
+                    icon = Icons.Filled.Notifications,
+                    checked = ttsEnabled,
+                    onCheckedChange = viewModel::onTtsEnabledChange
+                )
+                HorizontalDivider(modifier = Modifier.padding(start = 56.dp))
+                SettingsSwitchItem(
+                    title = "自动静音",
+                    subtitle = "上课期间自动静音",
+                    icon = Icons.Filled.VolumeOff,
+                    checked = autoSilentEnabled,
+                    onCheckedChange = viewModel::onAutoSilentEnabledChange
+                )
+                HorizontalDivider(modifier = Modifier.padding(start = 56.dp))
+                SettingsSwitchItem(
+                    title = "同步到系统日历",
+                    subtitle = "将课程和日程同步到系统日历",
+                    icon = Icons.Filled.CalendarMonth,
+                    checked = calendarSyncEnabled,
+                    onCheckedChange = viewModel::onCalendarSyncEnabledChange
+                )
+            }
 
-            // Auto mute switch
-            SettingsSwitchItem(
-                title = "自动静音",
-                subtitle = "上课期间自动静音",
-                checked = autoSilentEnabled,
-                onCheckedChange = viewModel::onAutoSilentEnabledChange
-            )
-
-            HorizontalDivider()
-
-            // Calendar sync switch
-            SettingsSwitchItem(
-                title = "同步到系统日历",
-                subtitle = "将课程和日程同步到系统日历",
-                checked = calendarSyncEnabled,
-                onCheckedChange = viewModel::onCalendarSyncEnabledChange
-            )
-
-            HorizontalDivider()
-
-            // Reminder time slider
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 12.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "课前提醒时间",
-                        style = MaterialTheme.typography.bodyLarge
-                    )
-                    Text(
-                        text = "$reminderMinutes 分钟",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                }
-                Spacer(modifier = Modifier.height(4.dp))
-                Slider(
+            // ===== 学期设置 =====
+            SettingsSection(title = "学期设置") {
+                TermStartDateItem(
+                    termStartDate = termStartDate,
+                    onDateSelected = viewModel::onTermStartDateChange
+                )
+                HorizontalDivider(modifier = Modifier.padding(start = 56.dp))
+                SettingsSliderItem(
+                    title = "课前提醒时间",
                     value = reminderMinutes.toFloat(),
+                    valueRange = 5f..30f,
+                    steps = 4,
+                    valueLabel = "$reminderMinutes 分钟",
                     onValueChange = {
                         val stepped = (it / 5).toInt() * 5
                         viewModel.onReminderMinutesChange(stepped.coerceIn(5, 30))
-                    },
-                    valueRange = 5f..30f,
-                    steps = 4,
-                    modifier = Modifier.fillMaxWidth()
+                    }
                 )
             }
 
-            HorizontalDivider()
-
-            // ===== Appearance Settings =====
-            AppearanceSettingsCard(
-                presetThemes = presetThemes,
-                currentTheme = themeConfig,
-                backgroundType = backgroundType,
-                backgroundColor = backgroundColor,
-                backgroundImageUri = backgroundImageUri,
-                backgroundOpacity = backgroundOpacity,
-                borderWidth = borderWidth,
-                courseNameFontSize = courseNameFontSize,
-                classroomFontSize = classroomFontSize,
-                onApplyPreset = viewModel::applyPresetTheme,
-                onBackgroundTypeChange = viewModel::onBackgroundTypeChange,
-                onBackgroundColorChange = viewModel::onBackgroundColorChange,
-                onPickImage = { imagePickerLauncher.launch("image/*") },
-                onBackgroundOpacityChange = viewModel::onBackgroundOpacityChange,
-                onBorderWidthChange = viewModel::onBorderWidthChange,
-                onCourseNameFontSizeChange = viewModel::onCourseNameFontSizeChange,
-                onClassroomFontSizeChange = viewModel::onClassroomFontSizeChange
-            )
-
-            HorizontalDivider()
-
-            // Import schedule
-            SettingsActionItem(
-                title = "导入课表",
-                subtitle = "从文件或教务系统导入",
-                icon = Icons.AutoMirrored.Filled.Input,
-                onClick = viewModel::importSchedule
-            )
-
-            HorizontalDivider()
-
-            // Export schedule
-            SettingsActionItem(
-                title = "导出课表",
-                subtitle = "导出为文件",
-                icon = Icons.AutoMirrored.Filled.ExitToApp,
-                onClick = viewModel::exportSchedule
-            )
-
-            HorizontalDivider()
-
-            // About
-            SettingsActionItem(
-                title = "关于",
-                subtitle = "课程表 v1.0",
-                icon = Icons.AutoMirrored.Filled.HelpOutline,
-                onClick = { /* TODO: Show about dialog */ }
-            )
-        }
-    }
-}
-
-@Composable
-private fun AppearanceSettingsCard(
-    presetThemes: List<ThemeConfigEntity>,
-    currentTheme: ThemeConfigEntity,
-    backgroundType: String,
-    backgroundColor: String,
-    backgroundImageUri: String?,
-    backgroundOpacity: Float,
-    borderWidth: Int,
-    courseNameFontSize: Int,
-    classroomFontSize: Int,
-    onApplyPreset: (ThemeConfigEntity) -> Unit,
-    onBackgroundTypeChange: (String) -> Unit,
-    onBackgroundColorChange: (String) -> Unit,
-    onPickImage: () -> Unit,
-    onBackgroundOpacityChange: (Float) -> Unit,
-    onBorderWidthChange: (Int) -> Unit,
-    onCourseNameFontSizeChange: (Int) -> Unit,
-    onClassroomFontSizeChange: (Int) -> Unit
-) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-        ),
-        shape = RoundedCornerShape(12.dp)
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            // Title
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Palette,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary
-                )
-                Text(
-                    text = "外观设置",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-
-            HorizontalDivider()
-
-            // Theme Presets
-            Text(
-                text = "主题预设",
-                style = MaterialTheme.typography.titleSmall
-            )
-            LazyRow(
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                contentPadding = PaddingValues(vertical = 4.dp)
-            ) {
-                items(presetThemes) { preset ->
-                    PresetThemeCard(
-                        preset = preset,
-                        isSelected = preset.primaryColor == currentTheme.primaryColor
-                                && preset.backgroundImage == currentTheme.backgroundImage,
-                        onClick = { onApplyPreset(preset) }
-                    )
-                }
-            }
-
-            HorizontalDivider()
-
-            // Course Color Management
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { /* TODO: Navigate to color management page or show BottomSheet */ }
-                    .padding(vertical = 8.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+            // ===== 外观设置 =====
+            SettingsSection(title = "外观设置") {
+                // 主题预设
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp)
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.ColorLens,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    Text(
+                        text = "主题预设",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    Column {
-                        Text(
-                            text = "课程颜色管理",
-                            style = MaterialTheme.typography.bodyLarge
-                        )
-                        Text(
-                            text = "管理课程预设颜色",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        contentPadding = PaddingValues(vertical = 4.dp)
+                    ) {
+                        items(presetThemes) { preset ->
+                            PresetThemeCard(
+                                preset = preset,
+                                isSelected = preset.primaryColor == themeConfig.primaryColor
+                                        && preset.backgroundImage == themeConfig.backgroundImage,
+                                onClick = { viewModel.applyPresetTheme(preset) }
+                            )
+                        }
                     }
                 }
-                Text(
-                    text = "去设置",
-                    color = MaterialTheme.colorScheme.primary,
-                    style = MaterialTheme.typography.bodyMedium
-                )
-            }
+                HorizontalDivider(modifier = Modifier.padding(start = 56.dp))
 
-            HorizontalDivider()
-
-            // Background Settings
-            Text(
-                text = "背景设置",
-                style = MaterialTheme.typography.titleSmall
-            )
-
-            // Background type selector
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                BackgroundTypeButton(
-                    text = "纯色",
-                    icon = Icons.Default.ColorLens,
-                    isSelected = backgroundType == "color",
-                    onClick = { onBackgroundTypeChange("color") },
-                    modifier = Modifier.weight(1f)
-                )
-                BackgroundTypeButton(
-                    text = "图片",
-                    icon = Icons.Default.Image,
-                    isSelected = backgroundType == "image",
-                    onClick = { onBackgroundTypeChange("image") },
-                    modifier = Modifier.weight(1f)
-                )
-            }
-
-            when (backgroundType) {
-                "color" -> {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    SimpleColorPicker(
-                        selectedColor = backgroundColor,
-                        onColorSelected = onBackgroundColorChange
+                // 背景设置
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp)
+                ) {
+                    Text(
+                        text = "背景设置",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                }
-                "image" -> {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        BackgroundTypeButton(
+                            text = "纯色",
+                            icon = Icons.Default.ColorLens,
+                            isSelected = backgroundType == "color",
+                            onClick = { viewModel.onBackgroundTypeChange("color") },
+                            modifier = Modifier.weight(1f)
+                        )
+                        BackgroundTypeButton(
+                            text = "图片",
+                            icon = Icons.Default.Image,
+                            isSelected = backgroundType == "image",
+                            onClick = { viewModel.onBackgroundTypeChange("image") },
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                    when (backgroundType) {
+                        "color" -> {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            SimpleColorPicker(
+                                selectedColor = backgroundColor,
+                                onColorSelected = { viewModel.onBackgroundColorChange(it) }
+                            )
+                        }
+                        "image" -> {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = if (backgroundImageUri != null) "已选择图片" else "未选择图片",
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                                androidx.compose.material3.TextButton(onClick = { imagePickerLauncher.launch("image/*") }) {
+                                    Text(if (backgroundImageUri != null) "更换" else "选择图片")
+                                }
+                            }
+                        }
+                    }
                     Spacer(modifier = Modifier.height(8.dp))
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
+                        Text("背景透明度", style = MaterialTheme.typography.bodySmall)
                         Text(
-                            text = if (backgroundImageUri != null) "已选择图片" else "未选择图片",
-                            style = MaterialTheme.typography.bodyMedium
+                            "${(backgroundOpacity * 100).toInt()}%",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary
                         )
-                        // TODO: Add READ_MEDIA_IMAGES or READ_EXTERNAL_STORAGE permission check
-                        androidx.compose.material3.TextButton(onClick = onPickImage) {
-                            Text(if (backgroundImageUri != null) "更换" else "选择图片")
-                        }
                     }
+                    Slider(
+                        value = backgroundOpacity,
+                        onValueChange = { viewModel.onBackgroundOpacityChange(it) },
+                        valueRange = 0f..1f
+                    )
+                }
+                HorizontalDivider(modifier = Modifier.padding(start = 56.dp))
+
+                // 格子样式
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp)
+                ) {
+                    Text(
+                        text = "格子样式",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("边框粗细", style = MaterialTheme.typography.bodySmall)
+                        Text(
+                            "${borderWidth}dp",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                    Slider(
+                        value = borderWidth.toFloat(),
+                        onValueChange = { viewModel.onBorderWidthChange(it.toInt()) },
+                        valueRange = 0f..2f,
+                        steps = 1
+                    )
+                }
+                HorizontalDivider(modifier = Modifier.padding(start = 56.dp))
+
+                // 字体大小
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp)
+                ) {
+                    Text(
+                        text = "字体大小",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("课程名字体", style = MaterialTheme.typography.bodySmall)
+                        Text(
+                            "${courseNameFontSize}sp",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                    Slider(
+                        value = courseNameFontSize.toFloat(),
+                        onValueChange = { viewModel.onCourseNameFontSizeChange(it.toInt()) },
+                        valueRange = 12f..20f,
+                        steps = 7
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("教室/教师字体", style = MaterialTheme.typography.bodySmall)
+                        Text(
+                            "${classroomFontSize}sp",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                    Slider(
+                        value = classroomFontSize.toFloat(),
+                        onValueChange = { viewModel.onClassroomFontSizeChange(it.toInt()) },
+                        valueRange = 10f..16f,
+                        steps = 5
+                    )
                 }
             }
 
-            // Opacity slider
-            Column {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text("背景透明度", style = MaterialTheme.typography.bodyMedium)
-                    Text("${(backgroundOpacity * 100).toInt()}%", color = MaterialTheme.colorScheme.primary)
-                }
-                Slider(
-                    value = backgroundOpacity,
-                    onValueChange = onBackgroundOpacityChange,
-                    valueRange = 0f..1f,
-                    modifier = Modifier.fillMaxWidth()
+            // ===== 数据管理 =====
+            SettingsSection(title = "数据管理") {
+                SettingsActionItem(
+                    title = "导入课表",
+                    subtitle = "从文件或教务系统导入",
+                    icon = Icons.AutoMirrored.Filled.Input,
+                    onClick = viewModel::importSchedule
+                )
+                HorizontalDivider(modifier = Modifier.padding(start = 56.dp))
+                SettingsActionItem(
+                    title = "导出课表",
+                    subtitle = "导出为文件",
+                    icon = Icons.AutoMirrored.Filled.ExitToApp,
+                    onClick = viewModel::exportSchedule
                 )
             }
 
-            HorizontalDivider()
-
-            // Grid Style
-            Text(
-                text = "格子样式",
-                style = MaterialTheme.typography.titleSmall
-            )
-
-            // Border width slider
-            Column {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text("边框粗细", style = MaterialTheme.typography.bodyMedium)
-                    Text("${borderWidth}dp", color = MaterialTheme.colorScheme.primary)
-                }
-                Slider(
-                    value = borderWidth.toFloat(),
-                    onValueChange = { onBorderWidthChange(it.toInt()) },
-                    valueRange = 0f..2f,
-                    steps = 1,
-                    modifier = Modifier.fillMaxWidth()
+            // ===== 关于 =====
+            SettingsSection(title = "关于") {
+                SettingsActionItem(
+                    title = "关于",
+                    subtitle = "课程表 v1.0",
+                    icon = Icons.AutoMirrored.Filled.HelpOutline,
+                    onClick = { /* TODO: Show about dialog */ }
                 )
             }
 
-            HorizontalDivider()
-
-            // Font Size
-            Text(
-                text = "字体大小",
-                style = MaterialTheme.typography.titleSmall
-            )
-
-            // Course name font size
-            Column {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text("课程名字体", style = MaterialTheme.typography.bodyMedium)
-                    Text("${courseNameFontSize}sp", color = MaterialTheme.colorScheme.primary)
-                }
-                Slider(
-                    value = courseNameFontSize.toFloat(),
-                    onValueChange = { onCourseNameFontSizeChange(it.toInt()) },
-                    valueRange = 12f..20f,
-                    steps = 7,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-
-            // Classroom font size
-            Column {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text("教室/教师字体", style = MaterialTheme.typography.bodyMedium)
-                    Text("${classroomFontSize}sp", color = MaterialTheme.colorScheme.primary)
-                }
-                Slider(
-                    value = classroomFontSize.toFloat(),
-                    onValueChange = { onClassroomFontSizeChange(it.toInt()) },
-                    valueRange = 10f..16f,
-                    steps = 5,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
+            Spacer(modifier = Modifier.height(16.dp))
         }
     }
+}
+
+@Composable
+private fun SettingsSection(
+    title: String,
+    content: @Composable () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 4.dp)
+            )
+            content()
+        }
+    }
+}
+
+@Composable
+private fun SettingsSwitchItem(
+    title: String,
+    subtitle: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    ListItem(
+        headlineContent = {
+            Text(text = title, style = MaterialTheme.typography.bodyLarge)
+        },
+        supportingContent = {
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        },
+        leadingContent = {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary
+            )
+        },
+        trailingContent = {
+            Switch(
+                checked = checked,
+                onCheckedChange = onCheckedChange
+            )
+        },
+        modifier = Modifier.clickable { onCheckedChange(!checked) },
+        colors = ListItemDefaults.colors(containerColor = Color.Transparent)
+    )
+}
+
+@Composable
+private fun SettingsSliderItem(
+    title: String,
+    value: Float,
+    valueRange: ClosedFloatingPointRange<Float>,
+    steps: Int,
+    valueLabel: String,
+    onValueChange: (Float) -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 12.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(text = title, style = MaterialTheme.typography.bodyLarge)
+            Text(
+                text = valueLabel,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.primary
+            )
+        }
+        Spacer(modifier = Modifier.height(4.dp))
+        Slider(
+            value = value,
+            onValueChange = onValueChange,
+            valueRange = valueRange,
+            steps = steps,
+            modifier = Modifier.fillMaxWidth()
+        )
+    }
+}
+
+@Composable
+private fun TermStartDateItem(
+    termStartDate: LocalDate?,
+    onDateSelected: (LocalDate?) -> Unit,
+) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val initialDate = termStartDate ?: LocalDate.now()
+    val dateFormatter = remember { DateTimeFormatter.ofPattern("yyyy年MM月dd日") }
+    val currentWeek = TermWeekCalculator.calculateCurrentWeek(termStartDate)
+
+    ListItem(
+        headlineContent = {
+            Text(text = "开学日期", style = MaterialTheme.typography.bodyLarge)
+        },
+        supportingContent = {
+            Text(
+                text = if (termStartDate == null) {
+                    "未设置，当前按第 1 周显示"
+                } else {
+                    "${termStartDate.format(dateFormatter)}，当前第 ${currentWeek} 周"
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        },
+        leadingContent = {
+            Icon(
+                imageVector = Icons.Filled.CalendarMonth,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary
+            )
+        },
+        modifier = Modifier.clickable {
+            DatePickerDialog(
+                context,
+                { _, year, month, dayOfMonth ->
+                    onDateSelected(LocalDate.of(year, month + 1, dayOfMonth))
+                },
+                initialDate.year,
+                initialDate.monthValue - 1,
+                initialDate.dayOfMonth,
+            ).show()
+        },
+        colors = ListItemDefaults.colors(containerColor = Color.Transparent)
+    )
 }
 
 @Composable
@@ -623,36 +675,6 @@ private fun SimpleColorPicker(
 }
 
 @Composable
-private fun SettingsSwitchItem(
-    title: String,
-    subtitle: String,
-    checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onCheckedChange(!checked) }
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(text = title, style = MaterialTheme.typography.bodyLarge)
-            Text(
-                text = subtitle,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-        Switch(
-            checked = checked,
-            onCheckedChange = onCheckedChange
-        )
-    }
-}
-
-@Composable
 private fun SettingsActionItem(
     title: String,
     subtitle: String,
@@ -677,6 +699,7 @@ private fun SettingsActionItem(
                 tint = MaterialTheme.colorScheme.primary
             )
         },
-        modifier = Modifier.clickable(onClick = onClick)
+        modifier = Modifier.clickable(onClick = onClick),
+        colors = ListItemDefaults.colors(containerColor = Color.Transparent)
     )
 }

@@ -15,5 +15,6 @@ data class EventEntity(
     val reminderMinutes: Int = 0,
     val priority: Int = 0,
     val notes: String? = null,
-    val isCompleted: Boolean = false
+    val isCompleted: Boolean = false,
+    val courseId: Int? = null
 )

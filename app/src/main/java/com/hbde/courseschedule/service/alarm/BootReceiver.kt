@@ -6,6 +6,7 @@ import android.content.Intent
 import android.util.Log
 import com.hbde.courseschedule.data.local.SettingsDataStore
 import com.hbde.courseschedule.data.local.dao.CourseDao
+import com.hbde.courseschedule.service.tts.TtsManager
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -14,6 +15,11 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+/**
+ * 开机重调度接收器
+ * 接收 BOOT_COMPLETED 广播，重新调度所有 Alarm
+ * 同时重新初始化 TTS 引擎
+ */
 @AndroidEntryPoint
 class BootReceiver : BroadcastReceiver() {
 
@@ -30,6 +36,9 @@ class BootReceiver : BroadcastReceiver() {
     @Inject
     lateinit var settingsDataStore: SettingsDataStore
 
+    @Inject
+    lateinit var ttsManager: TtsManager
+
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action != Intent.ACTION_BOOT_COMPLETED) return
 
@@ -44,9 +53,14 @@ class BootReceiver : BroadcastReceiver() {
                 val courses = courseDao.getAllCourses().first()
                 // 从 SettingsDataStore 读取 reminderMinutes
                 val reminderMinutes = settingsDataStore.reminderMinutes.first()
-                // 调用 AlarmScheduler 重新设置所有提醒
-                alarmScheduler.scheduleCourseReminders(courses, reminderMinutes)
-                Log.d(TAG, "闹钟重新调度完成，共 ${courses.size} 门课程")
+
+                // 调用 AlarmScheduler 重新设置所有提醒（先取消再重新设置）
+                alarmScheduler.rescheduleAllReminders(courses, reminderMinutes)
+
+                // 重新初始化 TTS 引擎
+                ttsManager.init()
+
+                Log.d(TAG, "开机重调度完成，共 ${courses.size} 门课程")
             } catch (e: Exception) {
                 Log.e(TAG, "重新设置闹钟失败", e)
             } finally {

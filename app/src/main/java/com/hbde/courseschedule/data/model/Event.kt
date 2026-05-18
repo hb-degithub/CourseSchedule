@@ -20,5 +20,6 @@ data class Event(
     val reminderMinutes: Int = 0,
     val priority: EventPriority = EventPriority.MEDIUM,
     val notes: String? = null,
-    val isCompleted: Boolean = false
+    val isCompleted: Boolean = false,
+    val courseId: Int? = null
 )

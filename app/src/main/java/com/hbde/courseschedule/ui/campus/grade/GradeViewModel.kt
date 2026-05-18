@@ -2,18 +2,25 @@ package com.hbde.courseschedule.ui.campus.grade
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.hbde.courseschedule.data.model.GpaAlgorithm
-import com.hbde.courseschedule.data.model.GpaCalculator
-import com.hbde.courseschedule.data.model.GpaResult
+import com.hbde.courseschedule.data.local.entity.GradeEntity
+import com.hbde.courseschedule.data.model.CourseType
 import com.hbde.courseschedule.data.model.Grade
+import com.hbde.courseschedule.data.repository.GradeRepository
+import com.hbde.courseschedule.utils.GpaAlgorithm
+import com.hbde.courseschedule.utils.GpaCalculator
+import com.hbde.courseschedule.utils.GpaResult
+import com.hbde.courseschedule.utils.SemesterGpa
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 data class GradeUiState(
@@ -22,15 +29,18 @@ data class GradeUiState(
     val availableSemesters: List<String> = emptyList(),
     val selectedAlgorithm: GpaAlgorithm = GpaAlgorithm.STANDARD_4_0,
     val gpaResult: GpaResult = GpaResult(0f, 0f, 0, 0f),
+    val semesterGpaTrend: List<SemesterGpa> = emptyList(),
     val isLoading: Boolean = false,
     val showAlgorithmMenu: Boolean = false,
-    val showSemesterMenu: Boolean = false
+    val showSemesterMenu: Boolean = false,
+    val showAlgorithmDescription: Boolean = false
 )
 
 @HiltViewModel
-class GradeViewModel @Inject constructor() : ViewModel() {
+class GradeViewModel @Inject constructor(
+    private val gradeRepository: GradeRepository
+) : ViewModel() {
 
-    private val _allGrades = MutableStateFlow<List<Grade>>(emptyList())
     private val _selectedSemester = MutableStateFlow("全部学期")
     private val _selectedAlgorithm = MutableStateFlow(GpaAlgorithm.STANDARD_4_0)
 
@@ -39,7 +49,12 @@ class GradeViewModel @Inject constructor() : ViewModel() {
 
     init {
         // 合并数据流，自动计算 GPA
-        combine(_allGrades, _selectedSemester, _selectedAlgorithm) { grades, semester, algorithm ->
+        combine(
+            gradeRepository.getAllGrades(),
+            _selectedSemester,
+            _selectedAlgorithm
+        ) { entities, semester, algorithm ->
+            val grades = entities.map { it.toModel() }
             val filtered = if (semester == "全部学期") {
                 grades
             } else {
@@ -48,6 +63,7 @@ class GradeViewModel @Inject constructor() : ViewModel() {
 
             val semesters = listOf("全部学期") + grades.map { it.semester }.distinct().sorted()
             val gpaResult = GpaCalculator.calculateGpa(filtered, algorithm)
+            val trend = GpaCalculator.calculateSemesterGpaTrend(grades, algorithm)
 
             GradeUiState(
                 grades = filtered,
@@ -55,6 +71,7 @@ class GradeViewModel @Inject constructor() : ViewModel() {
                 availableSemesters = semesters,
                 selectedAlgorithm = algorithm,
                 gpaResult = gpaResult,
+                semesterGpaTrend = trend,
                 isLoading = false,
                 showAlgorithmMenu = false,
                 showSemesterMenu = false
@@ -62,94 +79,6 @@ class GradeViewModel @Inject constructor() : ViewModel() {
         }.onEach { state ->
             _uiState.value = state
         }.launchIn(viewModelScope)
-
-        // 加载模拟数据
-        loadMockData()
-    }
-
-    private fun loadMockData() {
-        _allGrades.value = listOf(
-            Grade(
-                id = 1,
-                courseName = "高等数学（上）",
-                credit = 5.0f,
-                score = 88f,
-                semester = "2024-2025-1",
-                type = com.hbde.courseschedule.data.model.CourseType.REQUIRED
-            ),
-            Grade(
-                id = 2,
-                courseName = "大学英语（一）",
-                credit = 3.0f,
-                score = 92f,
-                semester = "2024-2025-1",
-                type = com.hbde.courseschedule.data.model.CourseType.REQUIRED
-            ),
-            Grade(
-                id = 3,
-                courseName = "程序设计基础",
-                credit = 4.0f,
-                score = 85f,
-                semester = "2024-2025-1",
-                type = com.hbde.courseschedule.data.model.CourseType.REQUIRED
-            ),
-            Grade(
-                id = 4,
-                courseName = "线性代数",
-                credit = 3.5f,
-                score = 79f,
-                semester = "2024-2025-1",
-                type = com.hbde.courseschedule.data.model.CourseType.REQUIRED
-            ),
-            Grade(
-                id = 5,
-                courseName = "体育（一）",
-                credit = 1.0f,
-                score = 95f,
-                semester = "2024-2025-1",
-                type = com.hbde.courseschedule.data.model.CourseType.REQUIRED
-            ),
-            Grade(
-                id = 6,
-                courseName = "思想道德与法治",
-                credit = 3.0f,
-                score = 82f,
-                semester = "2024-2025-1",
-                type = com.hbde.courseschedule.data.model.CourseType.REQUIRED
-            ),
-            Grade(
-                id = 7,
-                courseName = "高等数学（下）",
-                credit = 5.0f,
-                score = 76f,
-                semester = "2024-2025-2",
-                type = com.hbde.courseschedule.data.model.CourseType.REQUIRED
-            ),
-            Grade(
-                id = 8,
-                courseName = "大学英语（二）",
-                credit = 3.0f,
-                score = 89f,
-                semester = "2024-2025-2",
-                type = com.hbde.courseschedule.data.model.CourseType.REQUIRED
-            ),
-            Grade(
-                id = 9,
-                courseName = "数据结构",
-                credit = 4.0f,
-                score = 91f,
-                semester = "2024-2025-2",
-                type = com.hbde.courseschedule.data.model.CourseType.REQUIRED
-            ),
-            Grade(
-                id = 10,
-                courseName = "心理学导论",
-                credit = 2.0f,
-                score = 87f,
-                semester = "2024-2025-2",
-                type = com.hbde.courseschedule.data.model.CourseType.ELECTIVE
-            )
-        )
     }
 
     fun selectSemester(semester: String) {
@@ -174,10 +103,67 @@ class GradeViewModel @Inject constructor() : ViewModel() {
         _uiState.update { it.copy(showAlgorithmMenu = false, showSemesterMenu = false) }
     }
 
+    fun toggleAlgorithmDescription() {
+        _uiState.update { it.copy(showAlgorithmDescription = !it.showAlgorithmDescription) }
+    }
+
     /**
-     * 导入成绩数据（后续对接教务系统）
+     * 导入成绩数据
      */
     fun importGrades(grades: List<Grade>) {
-        _allGrades.value = _allGrades.value + grades
+        viewModelScope.launch {
+            grades.forEach { grade ->
+                gradeRepository.insertGrade(grade.toEntity())
+            }
+        }
+    }
+
+    /**
+     * 添加单条成绩
+     */
+    fun addGrade(grade: Grade) {
+        viewModelScope.launch {
+            gradeRepository.insertGrade(grade.toEntity())
+        }
+    }
+
+    /**
+     * 删除成绩
+     */
+    fun deleteGrade(grade: Grade) {
+        viewModelScope.launch {
+            gradeRepository.deleteGrade(grade.toEntity())
+        }
+    }
+
+    /**
+     * 清空所有成绩
+     */
+    fun clearAllGrades() {
+        viewModelScope.launch {
+            gradeRepository.deleteAllGrades()
+        }
+    }
+
+    private fun GradeEntity.toModel(): Grade {
+        return Grade(
+            id = this.id,
+            courseName = this.courseName,
+            credit = this.credit,
+            score = this.score,
+            semester = this.semester,
+            type = if (this.type == "ELECTIVE") CourseType.ELECTIVE else CourseType.REQUIRED
+        )
+    }
+
+    private fun Grade.toEntity(): GradeEntity {
+        return GradeEntity(
+            id = this.id,
+            courseName = this.courseName,
+            credit = this.credit,
+            score = this.score,
+            semester = this.semester,
+            type = if (this.type == CourseType.ELECTIVE) "ELECTIVE" else "REQUIRED"
+        )
     }
 }

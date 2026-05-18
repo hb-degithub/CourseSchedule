@@ -3,9 +3,10 @@ package com.hbde.courseschedule.service.alarm
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.media.AudioManager
 import android.util.Log
 import com.hbde.courseschedule.data.local.SettingsDataStore
-import com.hbde.courseschedule.service.SilentModeManager
+import com.hbde.courseschedule.service.audio.AudioModeManager
 import com.hbde.courseschedule.service.liveactivity.LiveActivityManager
 import com.hbde.courseschedule.service.liveactivity.LiveActivityStatus
 import com.hbde.courseschedule.service.notification.NotificationHelper
@@ -18,6 +19,9 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+/**
+ * AlarmReceiver：接收 Alarm 广播，触发通知、语音播报、静音模式切换
+ */
 @AndroidEntryPoint
 class AlarmReceiver : BroadcastReceiver() {
 
@@ -32,7 +36,7 @@ class AlarmReceiver : BroadcastReceiver() {
     lateinit var ttsManager: TtsManager
 
     @Inject
-    lateinit var silentModeManager: SilentModeManager
+    lateinit var audioModeManager: AudioModeManager
 
     @Inject
     lateinit var alarmScheduler: AlarmScheduler
@@ -69,6 +73,9 @@ class AlarmReceiver : BroadcastReceiver() {
         }
     }
 
+    /**
+     * 处理课程提醒：显示通知 + 语音播报 + 自动静音
+     */
     private fun handleCourseReminder(context: Context, intent: Intent) {
         val courseId = intent.getIntExtra(AlarmScheduler.EXTRA_COURSE_ID, -1)
         val courseName = intent.getStringExtra(AlarmScheduler.EXTRA_COURSE_NAME) ?: "未知课程"
@@ -103,10 +110,16 @@ class AlarmReceiver : BroadcastReceiver() {
                     )
                 }
 
-                // 如果用户开启了自动静音，调用 SilentModeManager 切换静音/振动
+                // 如果用户开启了自动静音，调用 AudioModeManager 切换静音/振动
                 val autoSilentEnabled = settingsDataStore.autoSilentEnabled.first()
                 if (autoSilentEnabled) {
-                    silentModeManager.enterSilentMode(android.media.AudioManager.RINGER_MODE_VIBRATE)
+                    // 读取用户偏好的静音模式（完全静音或振动）
+                    val silentModeType = settingsDataStore.silentModeType.first()
+                    val targetMode = when (silentModeType) {
+                        "silent" -> AudioManager.RINGER_MODE_SILENT
+                        else -> AudioManager.RINGER_MODE_VIBRATE
+                    }
+                    audioModeManager.enterSilentMode(targetMode)
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "处理课程提醒失败", e)
@@ -161,6 +174,9 @@ class AlarmReceiver : BroadcastReceiver() {
         )
     }
 
+    /**
+     * 处理课程结束：恢复铃声模式 + 关闭实时活动
+     */
     private fun handleClassEnd() {
         Log.d(TAG, "课程结束，恢复铃声模式")
 
@@ -171,7 +187,7 @@ class AlarmReceiver : BroadcastReceiver() {
         val pendingResult = goAsync()
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
             try {
-                silentModeManager.restoreRingerMode()
+                audioModeManager.restoreRingerMode()
             } catch (e: Exception) {
                 Log.e(TAG, "恢复铃声模式失败", e)
             } finally {
@@ -180,6 +196,9 @@ class AlarmReceiver : BroadcastReceiver() {
         }
     }
 
+    /**
+     * 处理延后提醒（5分钟后再次提醒）
+     */
     private fun handleSnooze(context: Context, intent: Intent) {
         val notificationId = intent.getIntExtra(
             NotificationHelper.EXTRA_NOTIFICATION_ID,

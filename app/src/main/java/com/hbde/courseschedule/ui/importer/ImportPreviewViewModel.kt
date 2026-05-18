@@ -106,6 +106,21 @@ class ImportPreviewViewModel @Inject constructor(
         )
     }
 
+    /**
+     * 强制选中（用于冲突课程用户确认后）
+     */
+    fun forceSelect(index: Int) {
+        val currentState = _uiState.value as? ImportPreviewUiState.Success ?: return
+        val updatedItems = currentState.items.toMutableList()
+        if (index in updatedItems.indices) {
+            updatedItems[index] = updatedItems[index].copy(isSelected = true)
+            _uiState.value = currentState.copy(
+                items = updatedItems,
+                allSelected = updatedItems.all { it.isSelected }
+            )
+        }
+    }
+
     fun toggleSelectAll() {
         val currentState = _uiState.value as? ImportPreviewUiState.Success ?: return
         val newAllSelected = !currentState.allSelected

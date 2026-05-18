@@ -1,10 +1,10 @@
 package com.hbde.courseschedule
 
 import android.app.Application
-import android.app.NotificationManager
 import androidx.hilt.work.HiltWorkerFactory
 import androidx.work.Configuration
 import com.hbde.courseschedule.service.notification.NotificationHelper
+import com.hbde.courseschedule.service.widget.WidgetUpdateWorker
 import dagger.hilt.android.HiltAndroidApp
 import javax.inject.Inject
 
@@ -26,5 +26,7 @@ class CourseScheduleApplication : Application(), Configuration.Provider {
         super.onCreate()
         // 创建通知渠道
         notificationHelper.createChannels()
+        // 启动定时 Widget 更新任务
+        WidgetUpdateWorker.enqueuePeriodicWork(this)
     }
 }

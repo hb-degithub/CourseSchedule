@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import java.time.LocalDate
 import javax.inject.Inject
 
 @HiltViewModel
@@ -44,6 +45,13 @@ class SettingsViewModel @Inject constructor(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5000),
             initialValue = 8
+        )
+
+    val termStartDate: StateFlow<LocalDate?> = settingsDataStore.termStartDate
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = null
         )
 
     // Appearance settings
@@ -140,6 +148,12 @@ class SettingsViewModel @Inject constructor(
     fun onDailyOverviewHourChange(hour: Int) {
         viewModelScope.launch {
             settingsDataStore.setDailyOverviewHour(hour)
+        }
+    }
+
+    fun onTermStartDateChange(date: LocalDate?) {
+        viewModelScope.launch {
+            settingsDataStore.setTermStartDate(date)
         }
     }
 

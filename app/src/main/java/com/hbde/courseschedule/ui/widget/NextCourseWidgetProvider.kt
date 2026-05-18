@@ -6,21 +6,22 @@ import android.appwidget.AppWidgetProvider
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.graphics.Color as AndroidColor
 import android.widget.RemoteViews
 import com.hbde.courseschedule.MainActivity
 import com.hbde.courseschedule.R
 import com.hbde.courseschedule.data.local.AppDatabase
-import com.hbde.courseschedule.ui.schedule.ScheduleViewModel
 import com.hbde.courseschedule.data.local.entity.CourseEntity
+import com.hbde.courseschedule.data.local.entity.ThemeConfigEntity
 import com.hbde.courseschedule.data.local.entity.TimeSlot
 import com.hbde.courseschedule.data.local.entity.toTimeSlotList
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.Calendar
-import kotlin.math.max
 
 /**
  * 2x2 小尺寸 Widget：显示下一节课信息
@@ -47,10 +48,11 @@ class NextCourseWidgetProvider : AppWidgetProvider() {
         val database = AppDatabase.getInstance(context)
         val courseDao = database.courseDao()
         val timeTableDao = database.timeTableDao()
+        val themeConfigDao = database.themeConfigDao()
 
         coroutineScope.launch {
             val todayDayOfWeek = getTodayDayOfWeek()
-            val currentWeek = ScheduleViewModel.calculateCurrentWeek()
+            val currentWeek = resolveCurrentWeek(context)
             val currentCalendar = Calendar.getInstance()
             val currentHour = currentCalendar.get(Calendar.HOUR_OF_DAY)
             val currentMinute = currentCalendar.get(Calendar.MINUTE)
@@ -64,17 +66,21 @@ class NextCourseWidgetProvider : AppWidgetProvider() {
                 emptyList()
             }
 
-            try {
-                courseDao.getCoursesByWeekAndDay(currentWeek, todayDayOfWeek)
-                    .collect { courses ->
-                        val nextCourse = findNextCourse(courses, currentTimeMinutes, timeSlots)
-                        val remoteViews = buildRemoteViews(context, nextCourse, timeSlots, currentTimeMinutes)
-                        withContext(Dispatchers.Main) {
-                            appWidgetManager.updateAppWidget(appWidgetId, remoteViews)
-                        }
-                    }
+            val themeConfig = try {
+                themeConfigDao.getThemeConfigSync()
             } catch (_: Exception) {
-                val remoteViews = buildRemoteViews(context, null, timeSlots, currentTimeMinutes)
+                null
+            }
+
+            try {
+                val courses = courseDao.getCoursesByWeekAndDay(currentWeek, todayDayOfWeek).first()
+                val nextCourse = findNextCourse(courses, currentTimeMinutes, timeSlots)
+                val remoteViews = buildRemoteViews(context, nextCourse, timeSlots, currentTimeMinutes, themeConfig)
+                withContext(Dispatchers.Main) {
+                    appWidgetManager.updateAppWidget(appWidgetId, remoteViews)
+                }
+            } catch (_: Exception) {
+                val remoteViews = buildRemoteViews(context, null, timeSlots, currentTimeMinutes, themeConfig)
                 withContext(Dispatchers.Main) {
                     appWidgetManager.updateAppWidget(appWidgetId, remoteViews)
                 }
@@ -108,9 +114,44 @@ class NextCourseWidgetProvider : AppWidgetProvider() {
         context: Context,
         nextCourse: CourseEntity?,
         timeSlots: List<TimeSlot>,
-        currentTimeMinutes: Int
+        currentTimeMinutes: Int,
+        themeConfig: ThemeConfigEntity?
     ): RemoteViews {
         val remoteViews = RemoteViews(context.packageName, R.layout.widget_next_course)
+
+        // Apply theme colors
+        val widgetBgColor = if (themeConfig != null) {
+            val bgValue = themeConfig.backgroundImage
+            if (!bgValue.isNullOrBlank() && bgValue.startsWith("#")) {
+                try {
+                    AndroidColor.parseColor(bgValue)
+                } catch (_: Exception) {
+                    AndroidColor.parseColor("#FF2196F3")
+                }
+            } else {
+                AndroidColor.parseColor("#FF2196F3")
+            }
+        } else {
+            AndroidColor.parseColor("#FF2196F3")
+        }
+        remoteViews.setInt(R.id.widget_next_course_root, "setBackgroundColor", widgetBgColor)
+
+        val primaryTextColor = themeConfig?.let {
+            val primary = it.primaryColor
+            val luminance = (0.299 * AndroidColor.red(primary) +
+                    0.587 * AndroidColor.green(primary) +
+                    0.114 * AndroidColor.blue(primary)) / 255
+            if (luminance > 0.5f) AndroidColor.parseColor("#FF000000")
+            else AndroidColor.parseColor("#FFFFFFFF")
+        } ?: AndroidColor.parseColor("#FFFFFFFF")
+
+        val secondaryTextColor = if (primaryTextColor == AndroidColor.parseColor("#FF000000")) {
+            AndroidColor.parseColor("#B3000000")
+        } else {
+            AndroidColor.parseColor("#B3FFFFFF")
+        }
+
+        val accentColor = themeConfig?.primaryColor ?: AndroidColor.parseColor("#FF03DAC5")
 
         // 点击打开应用
         val openAppIntent = Intent(context, MainActivity::class.java).apply {
@@ -123,6 +164,12 @@ class NextCourseWidgetProvider : AppWidgetProvider() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         remoteViews.setOnClickPendingIntent(R.id.widget_next_course_root, openAppPendingIntent)
+
+        remoteViews.setTextColor(R.id.widget_next_course_label, secondaryTextColor)
+        remoteViews.setTextColor(R.id.widget_next_course_name, primaryTextColor)
+        remoteViews.setTextColor(R.id.widget_next_course_classroom, secondaryTextColor)
+        remoteViews.setTextColor(R.id.widget_next_course_countdown, accentColor)
+        remoteViews.setTextColor(R.id.widget_next_course_empty, secondaryTextColor)
 
         if (nextCourse != null) {
             remoteViews.setTextViewText(R.id.widget_next_course_name, nextCourse.name)

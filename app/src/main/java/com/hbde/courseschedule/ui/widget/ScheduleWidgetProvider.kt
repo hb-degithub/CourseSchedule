@@ -16,6 +16,7 @@ import com.hbde.courseschedule.data.local.entity.ThemeConfigEntity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.Calendar
@@ -53,6 +54,7 @@ class ScheduleWidgetProvider : AppWidgetProvider() {
 
         coroutineScope.launch {
             val todayDayOfWeek = getTodayDayOfWeek()
+            val currentWeek = resolveCurrentWeek(context)
 
             // 读取主题配置（同步查询，取第一条）
             val themeConfig = try {
@@ -63,14 +65,12 @@ class ScheduleWidgetProvider : AppWidgetProvider() {
 
             // Collect one emission from the Flow
             val courses = try {
-                courseDao.getCoursesByDayOfWeek(todayDayOfWeek)
-                    .collect { list ->
-                        val sorted = list.sortedBy { it.startNode }
-                        val remoteViews = buildRemoteViews(context, sorted, themeConfig)
-                        withContext(Dispatchers.Main) {
-                            appWidgetManager.updateAppWidget(appWidgetId, remoteViews)
-                        }
-                    }
+                val list = courseDao.getCoursesByWeekAndDay(currentWeek, todayDayOfWeek).first()
+                val sorted = list.sortedBy { it.startNode }
+                val remoteViews = buildRemoteViews(context, sorted, themeConfig)
+                withContext(Dispatchers.Main) {
+                    appWidgetManager.updateAppWidget(appWidgetId, remoteViews)
+                }
             } catch (_: Exception) {
                 // If Flow fails, show empty state
                 val remoteViews = buildRemoteViews(context, emptyList(), themeConfig)

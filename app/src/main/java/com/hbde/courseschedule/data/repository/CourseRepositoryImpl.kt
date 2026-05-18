@@ -1,8 +1,11 @@
 package com.hbde.courseschedule.data.repository
 
+import android.content.Context
 import com.hbde.courseschedule.data.local.CourseConflictChecker
 import com.hbde.courseschedule.data.local.dao.CourseDao
 import com.hbde.courseschedule.data.local.entity.CourseEntity
+import com.hbde.courseschedule.service.widget.updateAllWidgets
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -11,7 +14,8 @@ import javax.inject.Singleton
 
 @Singleton
 class CourseRepositoryImpl @Inject constructor(
-    private val courseDao: CourseDao
+    private val courseDao: CourseDao,
+    @ApplicationContext private val context: Context
 ) : CourseRepository {
 
     override fun getAllCourses(): Flow<List<CourseEntity>> = courseDao.getAllCourses()
@@ -52,7 +56,8 @@ class CourseRepositoryImpl @Inject constructor(
             )
         }
         courseDao.insert(course)
-        // TODO: Trigger widget update after course insertion
+        // Trigger widget update after course insertion
+        updateAllWidgets(context)
     }
 
     override suspend fun updateCourse(course: CourseEntity) {
@@ -67,11 +72,13 @@ class CourseRepositoryImpl @Inject constructor(
             )
         }
         courseDao.update(course)
-        // TODO: Trigger widget update after course update
+        // Trigger widget update after course update
+        updateAllWidgets(context)
     }
 
     override suspend fun deleteCourse(course: CourseEntity) {
         courseDao.delete(course)
-        // TODO: Trigger widget update after course deletion
+        // Trigger widget update after course deletion
+        updateAllWidgets(context)
     }
 }

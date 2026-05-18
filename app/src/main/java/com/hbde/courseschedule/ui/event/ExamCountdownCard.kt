@@ -8,6 +8,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccessTime
@@ -24,7 +27,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.hbde.courseschedule.data.model.Event
 import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
+
+private val examTimeFormatter = DateTimeFormatter.ofPattern("MM-dd HH:mm")
 
 @Composable
 fun ExamCountdownCard(
@@ -39,7 +45,9 @@ fun ExamCountdownCard(
 
     Card(
         onClick = onClick,
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            .width(280.dp),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.errorContainer
@@ -122,11 +130,39 @@ fun ExamCountdownCard(
                         tint = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.7f)
                     )
                     Text(
-                        text = examEvent.startTime.toLocalTime().toString(),
+                        text = examEvent.startTime.format(examTimeFormatter),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.8f)
                     )
                 }
+            }
+        }
+    }
+}
+
+@Composable
+fun ExamCountdownList(
+    examEvents: List<Event>,
+    modifier: Modifier = Modifier,
+    onExamClick: (Event) -> Unit = {}
+) {
+    Column(modifier = modifier.fillMaxWidth()) {
+        Text(
+            text = " upcoming 考试",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+        )
+
+        LazyRow(
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            items(examEvents) { exam ->
+                ExamCountdownCard(
+                    examEvent = exam,
+                    onClick = { onExamClick(exam) }
+                )
             }
         }
     }

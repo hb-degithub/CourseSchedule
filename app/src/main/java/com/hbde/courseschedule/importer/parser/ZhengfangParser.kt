@@ -11,6 +11,16 @@ import org.jsoup.nodes.Element
  */
 class ZhengfangParser : CourseParser {
 
+    override val parserName: String = "正方教务系统"
+    override val systemType: String = "zhengfang"
+
+    override fun canParse(html: String): Boolean {
+        return html.contains("kbtable") ||
+               html.contains("kbcontent") ||
+               html.contains("正方教务") ||
+               html.contains("zhjw")
+    }
+
     override fun parse(html: String): List<RawCourse> {
         val document = Jsoup.parse(html)
         val courses = mutableListOf<RawCourse>()

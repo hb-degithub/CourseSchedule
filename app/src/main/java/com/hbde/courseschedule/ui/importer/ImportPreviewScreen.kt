@@ -15,6 +15,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -29,13 +31,16 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -51,6 +56,8 @@ fun ImportPreviewScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
+    var showConflictDialog by remember { mutableStateOf(false) }
+    var conflictItem by remember { mutableStateOf<ImportPreviewItem?>(null) }
 
     LaunchedEffect(uiState) {
         val state = uiState as? ImportPreviewUiState.Success ?: return@LaunchedEffect
@@ -65,6 +72,20 @@ fun ImportPreviewScreen(
             }
             else -> {}
         }
+    }
+
+    // 冲突详情对话框
+    if (showConflictDialog && conflictItem != null) {
+        ConflictDetailDialog(
+            item = conflictItem!!,
+            onDismiss = { showConflictDialog = false; conflictItem = null },
+            onImportAnyway = {
+                val index = (uiState as? ImportPreviewUiState.Success)?.items?.indexOf(conflictItem!!)
+                index?.let { viewModel.forceSelect(it) }
+                showConflictDialog = false
+                conflictItem = null
+            }
+        )
     }
 
     Scaffold(
@@ -139,7 +160,11 @@ fun ImportPreviewScreen(
                             itemsIndexed(state.items) { index, item ->
                                 ImportPreviewItemCard(
                                     item = item,
-                                    onToggle = { viewModel.toggleSelection(index) }
+                                    onToggle = { viewModel.toggleSelection(index) },
+                                    onConflictClick = {
+                                        conflictItem = item
+                                        showConflictDialog = true
+                                    }
                                 )
                             }
                         }
@@ -151,9 +176,64 @@ fun ImportPreviewScreen(
 }
 
 @Composable
+private fun ConflictDetailDialog(
+    item: ImportPreviewItem,
+    onDismiss: () -> Unit,
+    onImportAnyway: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        icon = {
+            Icon(
+                imageVector = Icons.Filled.Warning,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.error
+            )
+        },
+        title = { Text("课程时间冲突") },
+        text = {
+            Column {
+                Text(
+                    text = "课程「${item.rawCourse.name}」与已有课程存在时间冲突：",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "· 周${getDayName(item.rawCourse.dayOfWeek)} 第${item.rawCourse.startNode}-${item.rawCourse.endNode}节",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    text = "· ${item.rawCourse.startWeek}-${item.rawCourse.endWeek}周",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "强制导入可能导致课程重叠显示，是否继续？",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onImportAnyway) {
+                Text("强制导入", color = MaterialTheme.colorScheme.error)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("取消")
+            }
+        }
+    )
+}
+
+@Composable
 private fun ImportPreviewItemCard(
     item: ImportPreviewItem,
-    onToggle: () -> Unit
+    onToggle: () -> Unit,
+    onConflictClick: () -> Unit = {}
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -211,12 +291,13 @@ private fun ImportPreviewItemCard(
             }
 
             if (item.hasConflict) {
-                Text(
-                    text = "冲突",
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.labelMedium,
-                    modifier = Modifier.padding(start = 8.dp)
-                )
+                TextButton(onClick = onConflictClick) {
+                    Text(
+                        text = "冲突",
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.labelMedium
+                    )
+                }
             }
         }
     }

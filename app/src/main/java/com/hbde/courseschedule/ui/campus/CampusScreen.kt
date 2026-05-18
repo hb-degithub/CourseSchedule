@@ -5,6 +5,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -13,9 +14,12 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Class
+import androidx.compose.material.icons.filled.Grade
 import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.School
 import androidx.compose.material3.Card
@@ -31,6 +35,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
@@ -67,32 +72,72 @@ fun CampusScreen(
             )
         }
     ) { innerPadding ->
-        Column(
+        LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(innerPadding)
-                .padding(16.dp),
+                .padding(innerPadding),
+            contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // 成绩查询卡片
-            FeatureCard(
-                title = "成绩查询",
-                subtitle = "查看各科成绩、计算 GPA",
-                icon = Icons.Filled.Class,
-                backgroundColor = Color(0xFFE3F2FD),
-                iconBackgroundColor = Color(0xFF1565C0),
-                onClick = onNavigateToGrade
-            )
+            // 成绩查询
+            item {
+                FeatureCard(
+                    title = "成绩查询",
+                    subtitle = "查看各科成绩、计算 GPA",
+                    icon = Icons.Filled.Grade,
+                    gradientColors = listOf(
+                        MaterialTheme.colorScheme.primaryContainer,
+                        MaterialTheme.colorScheme.secondaryContainer
+                    ),
+                    iconTint = MaterialTheme.colorScheme.primary,
+                    onClick = onNavigateToGrade
+                )
+            }
 
-            // 空教室查询卡片
-            FeatureCard(
-                title = "空教室查询",
-                subtitle = "查找空闲教室、收藏常用教室",
-                icon = Icons.Filled.Place,
-                backgroundColor = Color(0xFFE8F5E9),
-                iconBackgroundColor = Color(0xFF2E7D32),
-                onClick = onNavigateToClassroom
-            )
+            // 空教室查询
+            item {
+                FeatureCard(
+                    title = "空教室查询",
+                    subtitle = "查找空闲教室、收藏常用教室",
+                    icon = Icons.Filled.Place,
+                    gradientColors = listOf(
+                        MaterialTheme.colorScheme.tertiaryContainer,
+                        MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.6f)
+                    ),
+                    iconTint = MaterialTheme.colorScheme.tertiary,
+                    onClick = onNavigateToClassroom
+                )
+            }
+
+            // 已选课程
+            item {
+                FeatureCard(
+                    title = "已选课程",
+                    subtitle = "按学期展示已选课程列表及学分统计",
+                    icon = Icons.Filled.Class,
+                    gradientColors = listOf(
+                        MaterialTheme.colorScheme.secondaryContainer,
+                        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)
+                    ),
+                    iconTint = MaterialTheme.colorScheme.secondary,
+                    onClick = { /* TODO */ }
+                )
+            }
+
+            // 教务系统入口
+            item {
+                FeatureCard(
+                    title = "教务系统",
+                    subtitle = "免登录快捷打开学校教务系统",
+                    icon = Icons.AutoMirrored.Filled.OpenInNew,
+                    gradientColors = listOf(
+                        MaterialTheme.colorScheme.surfaceVariant,
+                        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
+                    ),
+                    iconTint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    onClick = { /* TODO */ }
+                )
+            }
         }
     }
 }
@@ -102,57 +147,75 @@ private fun FeatureCard(
     title: String,
     subtitle: String,
     icon: ImageVector,
-    backgroundColor: Color,
-    iconBackgroundColor: Color,
+    gradientColors: List<Color>,
+    iconTint: Color,
     onClick: () -> Unit
 ) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(
-            containerColor = backgroundColor
+            containerColor = Color.Transparent
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
-        Row(
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(20.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .background(
+                    brush = Brush.horizontalGradient(
+                        colors = gradientColors
+                    )
+                )
+                .padding(20.dp)
         ) {
-            // 图标
-            Box(
-                modifier = Modifier
-                    .size(56.dp)
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(iconBackgroundColor.copy(alpha = 0.15f)),
-                contentAlignment = Alignment.Center
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
             ) {
+                // 图标
+                Box(
+                    modifier = Modifier
+                        .size(52.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.8f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        modifier = Modifier.size(26.dp),
+                        tint = iconTint
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(16.dp))
+
+                // 文字
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = title,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = subtitle,
+                        fontSize = 14.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        lineHeight = 20.sp
+                    )
+                }
+
+                // 箭头
                 Icon(
-                    imageVector = icon,
+                    imageVector = Icons.AutoMirrored.Filled.OpenInNew,
                     contentDescription = null,
-                    modifier = Modifier.size(28.dp),
-                    tint = iconBackgroundColor
-                )
-            }
-
-            Spacer(modifier = Modifier.width(16.dp))
-
-            // 文字
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = title,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = subtitle,
-                    fontSize = 14.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                    modifier = Modifier.size(20.dp)
                 )
             }
         }

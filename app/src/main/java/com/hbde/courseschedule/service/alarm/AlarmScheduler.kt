@@ -7,8 +7,12 @@ import android.content.Intent
 import android.os.Build
 import android.util.Log
 import com.hbde.courseschedule.data.local.SettingsDataStore
+import com.hbde.courseschedule.data.local.dao.TimeTableDao
 import com.hbde.courseschedule.data.local.entity.CourseEntity
-import com.hbde.courseschedule.utils.WeekCalculator
+import com.hbde.courseschedule.data.local.entity.TimeSlot
+import com.hbde.courseschedule.data.local.entity.toTimeSlotList
+import com.hbde.courseschedule.utils.CourseStatusCalculator
+import com.hbde.courseschedule.utils.TermWeekCalculator
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.first
 import java.time.DayOfWeek
@@ -19,11 +23,16 @@ import java.time.ZoneId
 import javax.inject.Inject
 import javax.inject.Singleton
 
+/**
+ * AlarmManager 完整封装
+ * 支持设置/取消/更新课前提醒，支持多个提醒（不同课程不同时间）
+ */
 @Singleton
 class AlarmScheduler @Inject constructor(
     @ApplicationContext private val context: Context,
     private val alarmManager: AlarmManager,
     private val settingsDataStore: SettingsDataStore,
+    private val timeTableDao: TimeTableDao,
 ) {
 
     companion object {
@@ -36,34 +45,79 @@ class AlarmScheduler @Inject constructor(
         const val EXTRA_CLASSROOM = "extra_classroom"
         const val EXTRA_MINUTES_BEFORE = "extra_minutes_before"
 
-        // 课程节次对应的时间（示例，可根据实际情况调整）
-        private val NODE_START_TIMES = mapOf(
+        // 默认课程节次对应的时间（与 CourseStatusCalculator 保持一致）
+        private val DEFAULT_NODE_START_TIMES = mapOf(
             1 to LocalTime.of(8, 0),
-            2 to LocalTime.of(8, 50),
+            2 to LocalTime.of(8, 55),
             3 to LocalTime.of(10, 0),
-            4 to LocalTime.of(10, 50),
+            4 to LocalTime.of(10, 55),
             5 to LocalTime.of(14, 0),
-            6 to LocalTime.of(14, 50),
+            6 to LocalTime.of(14, 55),
             7 to LocalTime.of(16, 0),
-            8 to LocalTime.of(16, 50),
+            8 to LocalTime.of(16, 55),
             9 to LocalTime.of(19, 0),
-            10 to LocalTime.of(19, 50),
-            11 to LocalTime.of(20, 40),
+            10 to LocalTime.of(19, 55),
+            11 to LocalTime.of(20, 50),
+            12 to LocalTime.of(21, 45),
         )
 
-        private val NODE_END_TIMES = mapOf(
+        private val DEFAULT_NODE_END_TIMES = mapOf(
             1 to LocalTime.of(8, 45),
-            2 to LocalTime.of(9, 35),
+            2 to LocalTime.of(9, 40),
             3 to LocalTime.of(10, 45),
-            4 to LocalTime.of(11, 35),
+            4 to LocalTime.of(11, 40),
             5 to LocalTime.of(14, 45),
-            6 to LocalTime.of(15, 35),
+            6 to LocalTime.of(15, 40),
             7 to LocalTime.of(16, 45),
-            8 to LocalTime.of(17, 35),
+            8 to LocalTime.of(17, 40),
             9 to LocalTime.of(19, 45),
-            10 to LocalTime.of(20, 35),
-            11 to LocalTime.of(21, 25),
+            10 to LocalTime.of(20, 40),
+            11 to LocalTime.of(21, 35),
+            12 to LocalTime.of(22, 30),
         )
+    }
+
+    private var cachedTimeSlots: List<TimeSlot>? = null
+
+    /**
+     * 获取当前使用的节次时间映射（优先从数据库读取，否则使用默认）
+     */
+    private suspend fun getNodeStartTimes(): Map<Int, LocalTime> {
+        val slots = getTimeSlots()
+        return if (slots.isNotEmpty()) {
+            slots.mapIndexed { index, slot ->
+                (index + 1) to CourseStatusCalculator.parseTimeToMinutes(slot.startTime).let {
+                    LocalTime.of(it / 60, it % 60)
+                }
+            }.toMap()
+        } else {
+            DEFAULT_NODE_START_TIMES
+        }
+    }
+
+    private suspend fun getNodeEndTimes(): Map<Int, LocalTime> {
+        val slots = getTimeSlots()
+        return if (slots.isNotEmpty()) {
+            slots.mapIndexed { index, slot ->
+                (index + 1) to CourseStatusCalculator.parseTimeToMinutes(slot.endTime).let {
+                    LocalTime.of(it / 60, it % 60)
+                }
+            }.toMap()
+        } else {
+            DEFAULT_NODE_END_TIMES
+        }
+    }
+
+    private suspend fun getTimeSlots(): List<TimeSlot> {
+        if (cachedTimeSlots != null) return cachedTimeSlots!!
+        return try {
+            val timeTable = timeTableDao.getDefaultTimeTable()
+            val slots = timeTable?.timeSlots?.toTimeSlotList() ?: emptyList()
+            cachedTimeSlots = slots
+            slots
+        } catch (e: Exception) {
+            emptyList()
+        }
     }
 
     /**
@@ -83,14 +137,15 @@ class AlarmScheduler @Inject constructor(
 
     /**
      * 设置课程提醒闹钟
+     * 根据课程的 startNode 和 TimeSlot 计算上课开始时间，减去用户设置的提前提醒分钟数
      * @param course 课程实体
      * @param minutesBefore 提前多少分钟提醒（默认15分钟）
      */
-    fun setCourseReminder(course: CourseEntity, minutesBefore: Int = 15) {
+    suspend fun setCourseReminder(course: CourseEntity, minutesBefore: Int = 15) {
         val reminderTime = calculateNextReminderTime(course, minutesBefore) ?: return
         val endTime = calculateNextEndTime(course) ?: return
 
-        // 设置提醒闹钟
+        // 设置课前提醒闹钟
         val reminderIntent = createAlarmIntent(
             action = ACTION_COURSE_REMINDER,
             courseId = course.id,
@@ -106,6 +161,9 @@ class AlarmScheduler @Inject constructor(
         )
 
         scheduleExactAlarm(reminderTime, reminderPendingIntent)
+        Log.d(TAG, "已设置课程提醒: ${course.name}, 提醒时间: ${LocalDateTime.ofInstant(
+            java.time.Instant.ofEpochMilli(reminderTime), ZoneId.systemDefault()
+        )}")
 
         // 设置下课恢复铃声闹钟
         val endIntent = createAlarmIntent(
@@ -123,9 +181,20 @@ class AlarmScheduler @Inject constructor(
         )
 
         scheduleExactAlarm(endTime, endPendingIntent)
+        Log.d(TAG, "已设置下课恢复: ${course.name}, 结束时间: ${LocalDateTime.ofInstant(
+            java.time.Instant.ofEpochMilli(endTime), ZoneId.systemDefault()
+        )}")
 
         // 设置实时活动每分钟更新闹钟
         scheduleLiveActivityUpdates(course, reminderTime, endTime)
+    }
+
+    /**
+     * 更新课程提醒（先取消再重新设置）
+     */
+    suspend fun updateCourseReminder(course: CourseEntity, minutesBefore: Int = 15) {
+        cancelCourseReminder(course.id)
+        setCourseReminder(course, minutesBefore)
     }
 
     /**
@@ -214,22 +283,25 @@ class AlarmScheduler @Inject constructor(
 
         // 取消实时活动更新
         cancelLiveActivityUpdates(courseId)
+
+        Log.d(TAG, "已取消课程提醒: courseId=$courseId")
     }
 
     /**
      * 取消所有提醒
+     * 通过遍历所有课程 ID 来取消
      */
-    suspend fun cancelAllReminders() {
-        // 注：Android AlarmManager 没有直接获取所有已设置 alarm 的 API，
-        // 实际项目中应在数据库中维护已设置 alarm 的课程列表。
-        // 此处提供一个基于已知课程 ID 范围的清理方案作为兜底。
-        Log.w(TAG, "cancelAllReminders: 需要遍历已知课程 ID 取消 alarm")
+    suspend fun cancelAllReminders(courses: List<CourseEntity>) {
+        courses.forEach { course ->
+            cancelCourseReminder(course.id)
+        }
+        Log.d(TAG, "已取消所有提醒，共 ${courses.size} 门课程")
     }
 
     /**
      * 获取课程下一次 alarm 触发时间戳（毫秒）
      */
-    fun getNextAlarmTime(course: CourseEntity, reminderMinutes: Int): Long? {
+    suspend fun getNextAlarmTime(course: CourseEntity, reminderMinutes: Int): Long? {
         return calculateNextReminderTime(course, reminderMinutes)
     }
 
@@ -240,7 +312,11 @@ class AlarmScheduler @Inject constructor(
         courses: List<CourseEntity>,
         defaultMinutesBefore: Int = 15,
     ) {
+        // 先取消所有现有提醒
+        courses.forEach { cancelCourseReminder(it.id) }
+        // 重新设置
         scheduleCourseReminders(courses, defaultMinutesBefore)
+        Log.d(TAG, "已重新调度所有提醒，共 ${courses.size} 门课程")
     }
 
     private fun createAlarmIntent(
@@ -291,9 +367,10 @@ class AlarmScheduler @Inject constructor(
 
     /**
      * 计算下一次提醒时间（毫秒时间戳）
+     * 根据课程的 startNode 和 TimeSlot 计算上课开始时间，减去提前提醒分钟数
      */
-    private fun calculateNextReminderTime(course: CourseEntity, minutesBefore: Int): Long? {
-        val startTime = NODE_START_TIMES[course.startNode] ?: return null
+    private suspend fun calculateNextReminderTime(course: CourseEntity, minutesBefore: Int): Long? {
+        val startTime = getNodeStartTimes()[course.startNode] ?: return null
         val targetDayOfWeek = DayOfWeek.of(course.dayOfWeek)
 
         var targetDate = LocalDate.now()
@@ -322,8 +399,8 @@ class AlarmScheduler @Inject constructor(
     /**
      * 计算下一次下课时间（毫秒时间戳）
      */
-    private fun calculateNextEndTime(course: CourseEntity): Long? {
-        val endTime = NODE_END_TIMES[course.endNode] ?: return null
+    private suspend fun calculateNextEndTime(course: CourseEntity): Long? {
+        val endTime = getNodeEndTimes()[course.endNode] ?: return null
         val targetDayOfWeek = DayOfWeek.of(course.dayOfWeek)
 
         var targetDate = LocalDate.now()
@@ -375,9 +452,6 @@ class AlarmScheduler @Inject constructor(
      * 获取当前周数（优先从 SettingsDataStore 读取开学日期计算）
      */
     private suspend fun getCurrentWeek(): Int {
-        // 尝试从 SettingsDataStore 读取开学日期
-        // TODO: SettingsDataStore 中需要添加 termStartDate 配置
-        // 当前 fallback 到第 1 周
-        return 1
+        return TermWeekCalculator.calculateCurrentWeek(settingsDataStore.termStartDate.first())
     }
 }

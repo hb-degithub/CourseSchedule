@@ -11,6 +11,11 @@ import java.util.Locale
 import javax.inject.Inject
 import javax.inject.Singleton
 
+/**
+ * TTS 语音播报管理器
+ * 封装 TextToSpeech，支持播报课程信息
+ * 处理 TTS 初始化失败的情况（静音模式 fallback）
+ */
 @Singleton
 class TtsManager @Inject constructor(
     @ApplicationContext private val context: Context,
@@ -85,6 +90,7 @@ class TtsManager @Inject constructor(
 
     /**
      * 播报课程提醒
+     * 播报模板："下一节是 {courseName}，在 {classroom} 上课，还有 {minutes} 分钟开始"
      * @param courseName 课程名称
      * @param classroom 教室
      * @param minutes 提前分钟数
@@ -95,12 +101,23 @@ class TtsManager @Inject constructor(
 
         textToSpeech?.setSpeechRate(speed)
 
+        // 使用指定模板播报
         val message = buildString {
-            append("距离${courseName}还有${minutes}分钟")
+            append("下一节是${courseName}")
             if (classroom.isNotBlank()) {
-                append("，教室在${classroom}")
+                append("，在${classroom}上课")
             }
-            append("，请不要忘记带课本")
+            when {
+                minutes <= 0 -> append("，即将开始")
+                minutes < 60 -> append("，还有${minutes}分钟开始")
+                else -> {
+                    val hours = minutes / 60
+                    val mins = minutes % 60
+                    append("，还有${hours}小时")
+                    if (mins > 0) append("${mins}分钟")
+                    append("开始")
+                }
+            }
         }
 
         val params = HashMap<String, String>()

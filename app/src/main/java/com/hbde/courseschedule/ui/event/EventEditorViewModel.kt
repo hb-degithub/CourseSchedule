@@ -1,14 +1,18 @@
 package com.hbde.courseschedule.ui.event
 
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.hbde.courseschedule.data.model.Event
 import com.hbde.courseschedule.data.model.EventPriority
 import com.hbde.courseschedule.data.model.EventType
+import com.hbde.courseschedule.data.repository.EventRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.LocalDate
@@ -27,6 +31,7 @@ data class EventEditorUiState(
     val endTime: LocalTime = LocalTime.now().withMinute(0).withSecond(0).withNano(0).plusHours(1),
     val reminderMinutes: Int = 15,
     val priority: EventPriority = EventPriority.MEDIUM,
+    val courseId: Int? = null,
     val isSaving: Boolean = false,
     val saveCompleted: Boolean = false,
     val errorMessage: String? = null
@@ -36,12 +41,41 @@ data class EventEditorUiState(
 }
 
 @HiltViewModel
-class EventEditorViewModel @Inject constructor() : ViewModel() {
+class EventEditorViewModel @Inject constructor(
+    private val eventRepository: EventRepository,
+    private val savedStateHandle: SavedStateHandle
+) : ViewModel() {
 
     private val _uiState = MutableStateFlow(EventEditorUiState())
     val uiState: StateFlow<EventEditorUiState> = _uiState.asStateFlow()
 
     private var editingEventId: Int? = null
+
+    fun loadEvent(eventId: Int) {
+        if (eventId <= 0) return
+        viewModelScope.launch {
+            eventRepository.getEventById(eventId)
+                .filterNotNull()
+                .first()
+                .let { event ->
+                    editingEventId = event.id
+                    _uiState.value = EventEditorUiState(
+                        title = event.title,
+                        selectedType = event.type,
+                        location = event.location ?: "",
+                        notes = event.notes ?: "",
+                        startDate = event.startTime.toLocalDate(),
+                        startTime = event.startTime.toLocalTime(),
+                        endDate = event.endTime?.toLocalDate() ?: event.startTime.toLocalDate(),
+                        endTime = event.endTime?.toLocalTime()
+                            ?: event.startTime.toLocalTime().plusHours(1),
+                        reminderMinutes = event.reminderMinutes,
+                        priority = event.priority,
+                        courseId = event.courseId
+                    )
+                }
+        }
+    }
 
     fun loadEvent(event: Event) {
         editingEventId = event.id
@@ -55,7 +89,8 @@ class EventEditorViewModel @Inject constructor() : ViewModel() {
             endDate = event.endTime?.toLocalDate() ?: event.startTime.toLocalDate(),
             endTime = event.endTime?.toLocalTime() ?: event.startTime.toLocalTime().plusHours(1),
             reminderMinutes = event.reminderMinutes,
-            priority = event.priority
+            priority = event.priority,
+            courseId = event.courseId
         )
     }
 
@@ -99,6 +134,10 @@ class EventEditorViewModel @Inject constructor() : ViewModel() {
         _uiState.update { it.copy(priority = priority) }
     }
 
+    fun updateCourseId(courseId: Int?) {
+        _uiState.update { it.copy(courseId = courseId) }
+    }
+
     fun saveEvent() {
         val state = _uiState.value
         if (!state.canSave) return
@@ -106,28 +145,41 @@ class EventEditorViewModel @Inject constructor() : ViewModel() {
         viewModelScope.launch {
             _uiState.update { it.copy(isSaving = true, errorMessage = null) }
 
-            val startDateTime = LocalDateTime.of(state.startDate, state.startTime)
-            val endDateTime = if (state.endDate != null && state.endTime != null) {
-                LocalDateTime.of(state.endDate, state.endTime)
-            } else null
+            try {
+                val startDateTime = LocalDateTime.of(state.startDate, state.startTime)
+                val endDateTime = if (state.endDate != null && state.endTime != null) {
+                    LocalDateTime.of(state.endDate, state.endTime)
+                } else null
 
-            val event = Event(
-                id = editingEventId ?: 0,
-                title = state.title.trim(),
-                type = state.selectedType,
-                location = state.location.trim().takeIf { it.isNotEmpty() },
-                startTime = startDateTime,
-                endTime = endDateTime,
-                reminderMinutes = state.reminderMinutes,
-                priority = state.priority,
-                notes = state.notes.trim().takeIf { it.isNotEmpty() },
-                isCompleted = false
-            )
+                val event = Event(
+                    id = editingEventId ?: 0,
+                    title = state.title.trim(),
+                    type = state.selectedType,
+                    location = state.location.trim().takeIf { it.isNotEmpty() },
+                    startTime = startDateTime,
+                    endTime = endDateTime,
+                    reminderMinutes = state.reminderMinutes,
+                    priority = state.priority,
+                    notes = state.notes.trim().takeIf { it.isNotEmpty() },
+                    isCompleted = false,
+                    courseId = state.courseId
+                )
 
-            // TODO: 调用 Repository 保存事件
-            // eventRepository.saveEvent(event)
+                if (editingEventId != null) {
+                    eventRepository.updateEvent(event)
+                } else {
+                    eventRepository.insertEvent(event)
+                }
 
-            _uiState.update { it.copy(isSaving = false, saveCompleted = true) }
+                _uiState.update { it.copy(isSaving = false, saveCompleted = true) }
+            } catch (e: Exception) {
+                _uiState.update {
+                    it.copy(
+                        isSaving = false,
+                        errorMessage = e.message ?: "保存失败"
+                    )
+                }
+            }
         }
     }
 

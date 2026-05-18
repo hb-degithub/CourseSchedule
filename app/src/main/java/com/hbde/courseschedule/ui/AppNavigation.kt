@@ -28,18 +28,20 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.hbde.courseschedule.ui.calendar.CalendarMonthScreen
 import com.hbde.courseschedule.ui.campus.CampusScreen
 import com.hbde.courseschedule.ui.campus.classroom.ClassroomScreen
 import com.hbde.courseschedule.ui.campus.grade.GradeScreen
 import com.hbde.courseschedule.ui.editor.CourseEditorScreen
+import com.hbde.courseschedule.ui.event.EventEditorScreen
+import com.hbde.courseschedule.ui.event.EventListScreen
 import com.hbde.courseschedule.ui.importer.ImportMethodScreen
 import com.hbde.courseschedule.ui.importer.ImportPreviewScreen
-import com.hbde.courseschedule.ui.event.EventEditorScreen
 import com.hbde.courseschedule.ui.onboarding.OnboardingScreen
-import com.hbde.courseschedule.ui.event.EventListScreen
 import com.hbde.courseschedule.ui.schedule.ScheduleScreen
 import com.hbde.courseschedule.ui.schedule.TwoDayScheduleScreen
 import com.hbde.courseschedule.ui.settings.SettingsScreen
+import com.hbde.courseschedule.importer.webview.CourseImportWebViewScreen
 
 sealed class Screen(val route: String, val label: String, val icon: ImageVector) {
     data object Schedule : Screen("schedule_screen", "课表", Icons.Filled.CalendarMonth)
@@ -62,7 +64,9 @@ object Routes {
     const val EVENT_EDITOR = "event_editor_screen"
     const val IMPORT_PREVIEW = "import_preview_screen"
     const val IMPORT_METHOD = "import_method_screen"
+    const val WEBVIEW_IMPORTER = "webview_importer_screen"
     const val ONBOARDING = "onboarding_screen"
+    const val CALENDAR = "calendar_screen"
 }
 
 @Composable
@@ -114,8 +118,18 @@ fun AppNavigation() {
             }
             composable(Routes.EVENT) {
                 EventListScreen(
-                    onNavigateToEditor = { navController.navigate(Routes.EVENT_EDITOR) }
+                    onNavigateToEditor = { eventId ->
+                        val route = if (eventId != null) {
+                            "${Routes.EVENT_EDITOR}?eventId=$eventId"
+                        } else {
+                            Routes.EVENT_EDITOR
+                        }
+                        navController.navigate(route)
+                    }
                 )
+            }
+            composable(Routes.CALENDAR) {
+                CalendarMonthScreen()
             }
             composable(Routes.CAMPUS) {
                 CampusScreen(
@@ -163,8 +177,18 @@ fun AppNavigation() {
                     onNavigateBack = { navController.popBackStack() }
                 )
             }
-            composable(Routes.EVENT_EDITOR) {
+            composable(
+                route = Routes.EVENT_EDITOR + "?eventId={eventId}",
+                arguments = listOf(
+                    navArgument("eventId") {
+                        type = NavType.IntType
+                        defaultValue = -1
+                    }
+                )
+            ) { backStackEntry ->
+                val eventId = backStackEntry.arguments?.getInt("eventId")?.takeIf { it != -1 }
                 EventEditorScreen(
+                    eventId = eventId,
                     onNavigateBack = { navController.popBackStack() }
                 )
             }
@@ -185,24 +209,29 @@ fun AppNavigation() {
                 ImportMethodScreen(
                     onNavigateBack = { navController.popBackStack() },
                     onNavigateToWebViewImporter = {
-                        // TODO: Navigate to WebView importer
-                        navController.popBackStack()
+                        navController.navigate(Routes.WEBVIEW_IMPORTER)
                     },
                     onNavigateToFilePicker = {
-                        // TODO: Open file picker for Excel/CSV/ICS
                         navController.popBackStack()
                     },
                     onNavigateToImagePicker = {
-                        // TODO: Open camera/gallery picker
                         navController.popBackStack()
                     },
                     onNavigateToShareCode = {
-                        // TODO: Navigate to share code input
                         navController.popBackStack()
                     },
                     onNavigateToManualAdd = {
                         navController.navigate(Routes.COURSE_EDITOR)
                     }
+                )
+            }
+            composable(Routes.WEBVIEW_IMPORTER) {
+                CourseImportWebViewScreen(
+                    loginUrl = "",
+                    onHtmlExtracted = { html, cookies ->
+                        navController.popBackStack()
+                    },
+                    onNavigateBack = { navController.popBackStack() }
                 )
             }
             composable(Routes.ONBOARDING) {

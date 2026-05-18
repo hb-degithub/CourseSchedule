@@ -8,6 +8,7 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -22,11 +23,14 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Upload
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -35,6 +39,10 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -64,6 +72,7 @@ fun ScheduleScreen(
     val today = LocalDate.now()
     val currentDayOfWeek = today.dayOfWeek.value // 1..7
     val currentTime = LocalTime.now()
+    var showMenu by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -84,32 +93,52 @@ fun ScheduleScreen(
                     }
                 },
                 navigationIcon = {
-                    IconButton(onClick = { viewModel.previousWeek() }) {
-                        Icon(
-                            Icons.AutoMirrored.Filled.KeyboardArrowLeft,
-                            contentDescription = "上一周"
-                        )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(onClick = { viewModel.previousWeek() }) {
+                            Icon(
+                                Icons.AutoMirrored.Filled.KeyboardArrowLeft,
+                                contentDescription = "上一周"
+                            )
+                        }
+                        IconButton(
+                            onClick = { viewModel.currentWeek() },
+                            modifier = Modifier.width(48.dp)
+                        ) {
+                            Text(
+                                text = "本周",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onPrimary
+                            )
+                        }
+                        IconButton(onClick = { viewModel.nextWeek() }) {
+                            Icon(
+                                Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                                contentDescription = "下一周"
+                            )
+                        }
                     }
                 },
                 actions = {
-                    IconButton(onClick = { viewModel.currentWeek() }) {
-                        Text(
-                            text = "本周",
-                            style = MaterialTheme.typography.labelLarge,
-                            color = MaterialTheme.colorScheme.onPrimary
-                        )
-                    }
-                    IconButton(onClick = { viewModel.nextWeek() }) {
-                        Icon(
-                            Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                            contentDescription = "下一周"
-                        )
-                    }
                     IconButton(onClick = { onNavigateToEditor(null, null, null) }) {
                         Icon(Icons.Filled.Add, contentDescription = "添加课程")
                     }
-                    IconButton(onClick = onNavigateToImportMethod) {
-                        Icon(Icons.Filled.Upload, contentDescription = "导入课表")
+                    IconButton(onClick = { showMenu = true }) {
+                        Icon(Icons.Filled.MoreVert, contentDescription = "更多")
+                    }
+                    DropdownMenu(
+                        expanded = showMenu,
+                        onDismissRequest = { showMenu = false }
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("导入课表") },
+                            leadingIcon = {
+                                Icon(Icons.Filled.Upload, contentDescription = null)
+                            },
+                            onClick = {
+                                showMenu = false
+                                onNavigateToImportMethod()
+                            }
+                        )
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -250,7 +279,7 @@ private fun CourseStatusCard(
 /**
  * 五元组数据类，用于状态卡片解构
  */
-private data class Quintet<A, B, C, D, E>(
+internal data class Quintet<A, B, C, D, E>(
     val first: A,
     val second: B,
     val third: C,

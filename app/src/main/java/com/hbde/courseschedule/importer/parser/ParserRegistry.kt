@@ -25,4 +25,18 @@ class ParserRegistry {
     fun getAvailableParsers(): List<String> {
         return parsers.keys.toList()
     }
+
+    /**
+     * 自动检测 HTML 适用的解析器
+     */
+    fun detectParser(html: String): CourseParser? {
+        return parsers.values.firstOrNull { it.canParse(html) }
+    }
+
+    /**
+     * 获取所有解析器信息
+     */
+    fun getAllParsers(): List<CourseParser> {
+        return parsers.values.toList()
+    }
 }

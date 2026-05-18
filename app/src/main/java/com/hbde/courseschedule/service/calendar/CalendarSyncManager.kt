@@ -1,12 +1,15 @@
 package com.hbde.courseschedule.service.calendar
 
+import android.Manifest
 import android.content.ContentResolver
 import android.content.ContentUris
 import android.content.ContentValues
 import android.content.Context
+import android.content.pm.PackageManager
 import android.database.Cursor
 import android.net.Uri
 import android.provider.CalendarContract
+import androidx.core.content.ContextCompat
 import com.hbde.courseschedule.data.local.SettingsDataStore
 import com.hbde.courseschedule.data.local.entity.CourseEntity
 import com.hbde.courseschedule.data.local.entity.EventEntity
@@ -38,6 +41,19 @@ class CalendarSyncManager @Inject constructor(
     private val contentResolver: ContentResolver = context.contentResolver
 
     /**
+     * 检查是否拥有日历读写权限
+     */
+    fun hasCalendarPermissions(): Boolean {
+        val readGranted = ContextCompat.checkSelfPermission(
+            context, Manifest.permission.READ_CALENDAR
+        ) == PackageManager.PERMISSION_GRANTED
+        val writeGranted = ContextCompat.checkSelfPermission(
+            context, Manifest.permission.WRITE_CALENDAR
+        ) == PackageManager.PERMISSION_GRANTED
+        return readGranted && writeGranted
+    }
+
+    /**
      * 检查日历同步是否已启用
      */
     suspend fun isSyncEnabled(): Boolean {
@@ -54,8 +70,11 @@ class CalendarSyncManager @Inject constructor(
     /**
      * 将课程列表同步到系统日历
      */
-    suspend fun syncCoursesToCalendar(courses: List<CourseEntity>, timeSlots: List<TimeSlot>) = withContext(Dispatchers.IO) {
-        // TODO: 检查 READ_CALENDAR / WRITE_CALENDAR 权限
+    suspend fun syncCoursesToCalendar(
+        courses: List<CourseEntity>,
+        timeSlots: List<TimeSlot>
+    ) = withContext(Dispatchers.IO) {
+        if (!hasCalendarPermissions()) return@withContext
         val calendarId = getOrCreateLocalCalendar() ?: return@withContext
         removeCalendarEventsByPrefix(SYNC_PREFIX_COURSE)
 
@@ -70,7 +89,7 @@ class CalendarSyncManager @Inject constructor(
      * 将日程列表同步到系统日历
      */
     suspend fun syncEventsToCalendar(events: List<EventEntity>) = withContext(Dispatchers.IO) {
-        // TODO: 检查 READ_CALENDAR / WRITE_CALENDAR 权限
+        if (!hasCalendarPermissions()) return@withContext
         val calendarId = getOrCreateLocalCalendar() ?: return@withContext
         removeCalendarEventsByPrefix(SYNC_PREFIX_EVENT)
 
@@ -80,12 +99,58 @@ class CalendarSyncManager @Inject constructor(
     }
 
     /**
+     * 同步单个课程（用于课程修改后的增量同步）
+     */
+    suspend fun syncSingleCourse(
+        course: CourseEntity,
+        timeSlots: List<TimeSlot>
+    ) = withContext(Dispatchers.IO) {
+        if (!hasCalendarPermissions()) return@withContext
+        val calendarId = getOrCreateLocalCalendar() ?: return@withContext
+
+        // 删除旧的同步事件
+        removeCalendarEventBySyncId("$SYNC_PREFIX_COURSE${course.id}")
+
+        val semesterStartDate = getSemesterStartDate()
+        insertCourseEvent(course, calendarId, semesterStartDate, timeSlots)
+    }
+
+    /**
+     * 同步单个日程（用于日程修改后的增量同步）
+     */
+    suspend fun syncSingleEvent(event: EventEntity) = withContext(Dispatchers.IO) {
+        if (!hasCalendarPermissions()) return@withContext
+        val calendarId = getOrCreateLocalCalendar() ?: return@withContext
+
+        // 删除旧的同步事件
+        removeCalendarEventBySyncId("$SYNC_PREFIX_EVENT${event.id}")
+
+        insertEventEntity(event, calendarId)
+    }
+
+    /**
      * 删除所有已同步的课程/日程事件
      */
     suspend fun removeCalendarEvents() = withContext(Dispatchers.IO) {
-        // TODO: 检查 READ_CALENDAR / WRITE_CALENDAR 权限
+        if (!hasCalendarPermissions()) return@withContext
         removeCalendarEventsByPrefix(SYNC_PREFIX_COURSE)
         removeCalendarEventsByPrefix(SYNC_PREFIX_EVENT)
+    }
+
+    /**
+     * 删除单个课程的同步事件
+     */
+    suspend fun removeCourseSync(courseId: Int) = withContext(Dispatchers.IO) {
+        if (!hasCalendarPermissions()) return@withContext
+        removeCalendarEventBySyncId("$SYNC_PREFIX_COURSE$courseId")
+    }
+
+    /**
+     * 删除单个日程的同步事件
+     */
+    suspend fun removeEventSync(eventId: Int) = withContext(Dispatchers.IO) {
+        if (!hasCalendarPermissions()) return@withContext
+        removeCalendarEventBySyncId("$SYNC_PREFIX_EVENT$eventId")
     }
 
     /**
@@ -165,10 +230,16 @@ class CalendarSyncManager @Inject constructor(
         val startTimeSlot = timeSlots.getOrNull(course.startNode - 1) ?: return
         val endTimeSlot = timeSlots.getOrNull(course.endNode - 1) ?: return
 
-        val eventStartTime = calculateCourseDateTime(semesterStartDate, course.startWeek, course.dayOfWeek, startTimeSlot.startTime)
-        val eventEndTime = calculateCourseDateTime(semesterStartDate, course.startWeek, course.dayOfWeek, endTimeSlot.endTime)
+        val eventStartTime = calculateCourseDateTime(
+            semesterStartDate, course.startWeek, course.dayOfWeek, startTimeSlot.startTime
+        )
+        val eventEndTime = calculateCourseDateTime(
+            semesterStartDate, course.startWeek, course.dayOfWeek, endTimeSlot.endTime
+        )
 
-        val untilDate = calculateCourseDateTime(semesterStartDate, course.endWeek, course.dayOfWeek, endTimeSlot.endTime)
+        val untilDate = calculateCourseDateTime(
+            semesterStartDate, course.endWeek, course.dayOfWeek, endTimeSlot.endTime
+        )
         val untilStr = formatUntilDate(untilDate)
 
         val rrule = buildString {
@@ -205,7 +276,7 @@ class CalendarSyncManager @Inject constructor(
         try {
             contentResolver.insert(CalendarContract.Events.CONTENT_URI, values)
         } catch (e: SecurityException) {
-            // TODO: 处理权限异常
+            // 权限异常已在入口检查
         }
     }
 
@@ -227,7 +298,7 @@ class CalendarSyncManager @Inject constructor(
         try {
             contentResolver.insert(CalendarContract.Events.CONTENT_URI, values)
         } catch (e: SecurityException) {
-            // TODO: 处理权限异常
+            // 权限异常已在入口检查
         }
     }
 
@@ -241,7 +312,21 @@ class CalendarSyncManager @Inject constructor(
         try {
             contentResolver.delete(CalendarContract.Events.CONTENT_URI, selection, selectionArgs)
         } catch (e: SecurityException) {
-            // TODO: 处理权限异常
+            // 权限异常已在入口检查
+        }
+    }
+
+    /**
+     * 根据 syncId 删除单个事件
+     */
+    private fun removeCalendarEventBySyncId(syncId: String) {
+        val selection = "${CalendarContract.Events.SYNC_DATA1} = ?"
+        val selectionArgs = arrayOf(syncId)
+
+        try {
+            contentResolver.delete(CalendarContract.Events.CONTENT_URI, selection, selectionArgs)
+        } catch (e: SecurityException) {
+            // 权限异常已在入口检查
         }
     }
 

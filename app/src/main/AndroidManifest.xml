@@ -104,6 +104,30 @@
                 android:resource="@xml/week_widget_info" />
         </receiver>
 
+        <!-- Today Courses Widget (4x2) -->
+        <receiver
+            android:name=".ui.widget.TodayCoursesWidgetProvider"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/today_courses_widget_info" />
+        </receiver>
+
+        <!-- Week Overview Widget (4x4) -->
+        <receiver
+            android:name=".ui.widget.WeekOverviewWidgetProvider"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/week_overview_widget_info" />
+        </receiver>
+
         <!-- LiveActivityService：用于保活悬浮窗实时活动 -->
         <service
             android:name=".service.liveactivity.LiveActivityService"

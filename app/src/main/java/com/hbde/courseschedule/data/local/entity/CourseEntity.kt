@@ -19,3 +19,15 @@ data class CourseEntity(
     val color: Int? = null,
     val notes: String? = null
 )
+
+/**
+ * 判断课程在某周是否可见（周范围 + 单双周判断）
+ */
+fun CourseEntity.isVisibleInWeek(week: Int): Boolean {
+    if (week < startWeek || week > endWeek) return false
+    return when (weekType.uppercase()) {
+        "ODD" -> week % 2 == 1
+        "EVEN" -> week % 2 == 0
+        else -> true
+    }
+}

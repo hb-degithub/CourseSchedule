@@ -31,4 +31,16 @@ interface EventDao {
 
     @Query("SELECT * FROM events WHERE id = :id")
     fun getEventById(id: Int): Flow<EventEntity?>
+
+    @Query("SELECT * FROM events WHERE courseId = :courseId")
+    fun getEventsByCourseId(courseId: Int): Flow<List<EventEntity>>
+
+    @Query("SELECT * FROM events WHERE isCompleted = 0 AND startTime >= :now ORDER BY startTime ASC")
+    fun getUpcomingEvents(now: Long): Flow<List<EventEntity>>
+
+    @Query("SELECT * FROM events WHERE type = 'EXAM' AND isCompleted = 0 AND startTime >= :now ORDER BY startTime ASC")
+    fun getUpcomingExams(now: Long): Flow<List<EventEntity>>
+
+    @Query("UPDATE events SET isCompleted = :completed WHERE id = :eventId")
+    suspend fun updateCompletionStatus(eventId: Int, completed: Boolean)
 }
