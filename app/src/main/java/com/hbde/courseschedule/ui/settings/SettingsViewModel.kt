@@ -111,6 +111,28 @@ class SettingsViewModel @Inject constructor(
             initialValue = false
         )
 
+    // Custom URLs
+    val gradeUrl: StateFlow<String?> = settingsDataStore.gradeUrl
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = null
+        )
+
+    val selectedCoursesUrl: StateFlow<String?> = settingsDataStore.selectedCoursesUrl
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = null
+        )
+
+    val portalUrl: StateFlow<String?> = settingsDataStore.portalUrl
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = null
+        )
+
     val themeConfig = themeConfigRepository.getThemeConfig()
         .stateIn(
             scope = viewModelScope,
@@ -211,6 +233,25 @@ class SettingsViewModel @Inject constructor(
     fun onCalendarSyncEnabledChange(enabled: Boolean) {
         viewModelScope.launch {
             settingsDataStore.setCalendarSyncEnabled(enabled)
+        }
+    }
+
+    // Custom URL actions
+    fun onGradeUrlChange(url: String?) {
+        viewModelScope.launch {
+            settingsDataStore.setGradeUrl(url)
+        }
+    }
+
+    fun onSelectedCoursesUrlChange(url: String?) {
+        viewModelScope.launch {
+            settingsDataStore.setSelectedCoursesUrl(url)
+        }
+    }
+
+    fun onPortalUrlChange(url: String?) {
+        viewModelScope.launch {
+            settingsDataStore.setPortalUrl(url)
         }
     }
 

@@ -1,5 +1,7 @@
 package com.hbde.courseschedule.ui.campus
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -32,12 +34,15 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -50,6 +55,18 @@ fun CampusScreen(
     onNavigateToGrade: () -> Unit = {},
     onNavigateToClassroom: () -> Unit = {}
 ) {
+    val gradeUrl by viewModel.gradeUrl.collectAsState()
+    val selectedCoursesUrl by viewModel.selectedCoursesUrl.collectAsState()
+    val portalUrl by viewModel.portalUrl.collectAsState()
+    val context = LocalContext.current
+
+    fun openUrl(url: String?) {
+        url?.let {
+            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(it))
+            context.startActivity(intent)
+        }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -83,14 +100,17 @@ fun CampusScreen(
             item {
                 FeatureCard(
                     title = "成绩查询",
-                    subtitle = "查看各科成绩、计算 GPA",
+                    subtitle = gradeUrl ?: "查看各科成绩、计算 GPA",
                     icon = Icons.Filled.Grade,
                     gradientColors = listOf(
                         MaterialTheme.colorScheme.primaryContainer,
                         MaterialTheme.colorScheme.secondaryContainer
                     ),
                     iconTint = MaterialTheme.colorScheme.primary,
-                    onClick = onNavigateToGrade
+                    onClick = {
+                        if (gradeUrl != null) openUrl(gradeUrl)
+                        else onNavigateToGrade()
+                    }
                 )
             }
 
@@ -113,14 +133,14 @@ fun CampusScreen(
             item {
                 FeatureCard(
                     title = "已选课程",
-                    subtitle = "按学期展示已选课程列表及学分统计",
+                    subtitle = selectedCoursesUrl ?: "按学期展示已选课程列表及学分统计",
                     icon = Icons.Filled.Class,
                     gradientColors = listOf(
                         MaterialTheme.colorScheme.secondaryContainer,
                         MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)
                     ),
                     iconTint = MaterialTheme.colorScheme.secondary,
-                    onClick = { /* TODO */ }
+                    onClick = { openUrl(selectedCoursesUrl) }
                 )
             }
 
@@ -128,14 +148,14 @@ fun CampusScreen(
             item {
                 FeatureCard(
                     title = "教务系统",
-                    subtitle = "免登录快捷打开学校教务系统",
+                    subtitle = portalUrl ?: "免登录快捷打开学校教务系统",
                     icon = Icons.AutoMirrored.Filled.OpenInNew,
                     gradientColors = listOf(
                         MaterialTheme.colorScheme.surfaceVariant,
                         MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
                     ),
                     iconTint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    onClick = { /* TODO */ }
+                    onClick = { openUrl(portalUrl) }
                 )
             }
         }
@@ -206,7 +226,9 @@ private fun FeatureCard(
                         text = subtitle,
                         fontSize = 14.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        lineHeight = 20.sp
+                        lineHeight = 20.sp,
+                        maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                     )
                 }
 

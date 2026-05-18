@@ -49,8 +49,59 @@ class SettingsDataStore @Inject constructor(
         // Calendar sync
         val CALENDAR_SYNC_ENABLED = booleanPreferencesKey("calendar_sync_enabled")
 
+        // Custom URLs
+        val GRADE_URL = stringPreferencesKey("grade_url")
+        val SELECTED_COURSES_URL = stringPreferencesKey("selected_courses_url")
+        val PORTAL_URL = stringPreferencesKey("portal_url")
+
         // Onboarding
         val HAS_COMPLETED_ONBOARDING = booleanPreferencesKey("has_completed_onboarding")
+    }
+
+    // Custom URL flows
+    val gradeUrl: Flow<String?> = dataStore.data
+        .map { preferences ->
+            preferences[GRADE_URL]
+        }
+
+    val selectedCoursesUrl: Flow<String?> = dataStore.data
+        .map { preferences ->
+            preferences[SELECTED_COURSES_URL]
+        }
+
+    val portalUrl: Flow<String?> = dataStore.data
+        .map { preferences ->
+            preferences[PORTAL_URL]
+        }
+
+    suspend fun setGradeUrl(url: String?) {
+        dataStore.edit { preferences ->
+            if (url != null) {
+                preferences[GRADE_URL] = url
+            } else {
+                preferences.remove(GRADE_URL)
+            }
+        }
+    }
+
+    suspend fun setSelectedCoursesUrl(url: String?) {
+        dataStore.edit { preferences ->
+            if (url != null) {
+                preferences[SELECTED_COURSES_URL] = url
+            } else {
+                preferences.remove(SELECTED_COURSES_URL)
+            }
+        }
+    }
+
+    suspend fun setPortalUrl(url: String?) {
+        dataStore.edit { preferences ->
+            if (url != null) {
+                preferences[PORTAL_URL] = url
+            } else {
+                preferences.remove(PORTAL_URL)
+            }
+        }
     }
 
     val reminderMinutes: Flow<Int> = dataStore.data

@@ -14,6 +14,8 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -31,13 +33,18 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -112,7 +119,27 @@ fun ScheduleGrid(
     onEmptyCellClick: (dayOfWeek: Int, startNode: Int) -> Unit = { _, _ -> },
     onCourseClick: (CourseEntity) -> Unit = {}
 ) {
-    Box(modifier = Modifier.fillMaxSize()) {
+    val scale = remember { mutableFloatStateOf(1f) }
+    val minScale = 0.6f
+    val maxScale = 2.5f
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .pointerInput(Unit) {
+                detectTransformGestures { _, _, zoom, _ ->
+                    val newScale = scale.floatValue * zoom
+                    scale.floatValue = newScale.coerceIn(minScale, maxScale)
+                }
+            }
+            .pointerInput(Unit) {
+                detectTapGestures(
+                    onDoubleTap = {
+                        scale.floatValue = 1f
+                    }
+                )
+            }
+    ) {
         // 背景层
         ScheduleBackground(
             backgroundType = backgroundType,
@@ -120,7 +147,15 @@ fun ScheduleGrid(
             backgroundOpacity = backgroundOpacity
         )
 
-        Column(modifier = Modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer {
+                    scaleX = scale.floatValue
+                    scaleY = scale.floatValue
+                    transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, 0f)
+                }
+        ) {
             // 星期标题行
             DayHeaderRow(
                 currentDayOfWeek = currentDayOfWeek,

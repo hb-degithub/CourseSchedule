@@ -34,6 +34,7 @@ import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.VolumeOff
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
@@ -42,10 +43,12 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -59,6 +62,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -366,6 +370,33 @@ fun SettingsScreen(
                     subtitle = "导出为文件",
                     icon = Icons.AutoMirrored.Filled.ExitToApp,
                     onClick = viewModel::exportSchedule
+                )
+            }
+
+            // ===== 自定义网址 =====
+            val gradeUrl by viewModel.gradeUrl.collectAsState()
+            val selectedCoursesUrl by viewModel.selectedCoursesUrl.collectAsState()
+            val portalUrl by viewModel.portalUrl.collectAsState()
+            SettingsSection(title = "自定义网址") {
+                CustomUrlItem(
+                    title = "成绩查询网址",
+                    url = gradeUrl,
+                    placeholder = "https://example.edu/grade",
+                    onUrlChange = viewModel::onGradeUrlChange
+                )
+                HorizontalDivider(modifier = Modifier.padding(start = 56.dp))
+                CustomUrlItem(
+                    title = "已选课程网址",
+                    url = selectedCoursesUrl,
+                    placeholder = "https://example.edu/courses",
+                    onUrlChange = viewModel::onSelectedCoursesUrlChange
+                )
+                HorizontalDivider(modifier = Modifier.padding(start = 56.dp))
+                CustomUrlItem(
+                    title = "教务系统网址",
+                    url = portalUrl,
+                    placeholder = "https://example.edu/portal",
+                    onUrlChange = viewModel::onPortalUrlChange
                 )
             }
 
@@ -702,4 +733,85 @@ private fun SettingsActionItem(
         modifier = Modifier.clickable(onClick = onClick),
         colors = ListItemDefaults.colors(containerColor = Color.Transparent)
     )
+}
+
+@Composable
+private fun CustomUrlItem(
+    title: String,
+    url: String?,
+    placeholder: String,
+    onUrlChange: (String?) -> Unit
+) {
+    var isEditing by remember { mutableStateOf(false) }
+    var textValue by remember(url) { mutableStateOf(url ?: "") }
+
+    if (isEditing) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 12.dp)
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyLarge
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            OutlinedTextField(
+                value = textValue,
+                onValueChange = { textValue = it },
+                placeholder = { Text(placeholder) },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                TextButton(
+                    onClick = {
+                        isEditing = false
+                        textValue = url ?: ""
+                    },
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("取消")
+                }
+                Button(
+                    onClick = {
+                        isEditing = false
+                        onUrlChange(textValue.takeIf { it.isNotBlank() })
+                    },
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("保存")
+                }
+            }
+        }
+    } else {
+        ListItem(
+            headlineContent = {
+                Text(text = title, style = MaterialTheme.typography.bodyLarge)
+            },
+            supportingContent = {
+                Text(
+                    text = url ?: "未设置",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (url != null) MaterialTheme.colorScheme.primary
+                    else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            },
+            leadingContent = {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.Input,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            },
+            modifier = Modifier.clickable { isEditing = true },
+            colors = ListItemDefaults.colors(containerColor = Color.Transparent)
+        )
+    }
 }
